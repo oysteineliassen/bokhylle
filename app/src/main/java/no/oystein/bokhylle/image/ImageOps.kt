@@ -136,6 +136,43 @@ object ImageOps {
         return Bitmap.createBitmap(source, l, t, r - l, b - t)
     }
 
+    /**
+     * Klipper ut en figur slik at den ligner originalen: [box] er allerede uten bildetekst, bildet roteres
+     * [skew] grader tilbake (målt fra tekstlinjene) og fargene rettes mot [paper] (se FigureCleanup).
+     */
+    fun figure(source: Bitmap, box: Box, skew: Float?, paper: Int): Bitmap? {
+        val w = source.width
+        val h = source.height
+        val cut = if (skew == null) {
+            crop(source, box) ?: return null
+        } else {
+            // Klipp ut litt mer, roter rundt midten, og klipp så ut selve figuren: hjørnene som blir tomme faller utenfor.
+            val m = 0.04f
+            val outer = Box((box.left - m).coerceAtLeast(0f), (box.top - m).coerceAtLeast(0f), (box.right + m).coerceAtMost(1f), (box.bottom + m).coerceAtMost(1f))
+            val big = crop(source, outer) ?: return null
+            val turned = Bitmap.createBitmap(big, 0, 0, big.width, big.height, Matrix().apply { postRotate(-skew) }, true)
+            if (turned != big) big.recycle()
+            val cw = (box.width * w).roundToInt()
+            val ch = (box.height * h).roundToInt()
+            // Figurens midtpunkt i det utvidede utsnittet, flyttet til det roterte bildets midte.
+            val cx = turned.width / 2f + ((box.centerX - outer.centerX) * w)
+            val cy = turned.height / 2f + ((box.centerY - outer.centerY) * h)
+            val l = (cx - cw / 2f).roundToInt().coerceIn(0, turned.width - 8)
+            val t = (cy - ch / 2f).roundToInt().coerceIn(0, turned.height - 8)
+            val result = Bitmap.createBitmap(turned, l, t, cw.coerceAtMost(turned.width - l), ch.coerceAtMost(turned.height - t))
+            if (result != turned) turned.recycle()
+            result
+        }
+        val out = if (cut.isMutable) cut else cut.copy(Bitmap.Config.ARGB_8888, true).also { if (it != cut) cut.recycle() }
+        val px = IntArray(out.width * out.height)
+        out.getPixels(px, 0, out.width, 0, 0, out.width, out.height)
+        // Tomme hjørner etter rotasjonen (gjennomsiktige) fylles med papirfarge, ikke svart.
+        for (i in px.indices) if ((px[i] ushr 24) < 128) px[i] = paper or (0xFF shl 24)
+        no.oystein.bokhylle.core.FigureCleanup.enhance(px, out.width, out.height, paper)
+        out.setPixels(px, 0, out.width, 0, 0, out.width, out.height)
+        return out
+    }
+
     fun luminance(c: Int): Int = (Color.red(c) * 299 + Color.green(c) * 587 + Color.blue(c) * 114) / 1000
 
     /** Papirfargen: snittet av de lyseste halvparten av punktene i et rutenett over siden. */

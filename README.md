@@ -62,6 +62,10 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
   Innstillinger. Anslag med batch-pris: Sonnet ca. 1 USD per 100 sider, Haiku ca. 0,05 USD per 100 sider.
 - API-nøkkelen lagres kryptert (AES-GCM med nøkkel i Android Keystore) og logges aldri.
 - Ved feil eller uten nett beholdes ML Kit-teksten, og sidene merkes så de kan sendes senere.
+- Statusen på batcher sjekkes hvert 3. minutt, hvert minutt mens bokskjermen er åpen, og når appen startes.
+- **Figurer** klippes ut fra sidebildet og gjøres mer lik originalen: bildetekst som også vises som tekst klippes
+  bort, skjevheten måles ut fra tekstlinjene og rettes, og fargene rettes som i en skanner (papiret blir hvitt,
+  kontrasten strekkes, litt skarpere).
 
 ## Lagring
 

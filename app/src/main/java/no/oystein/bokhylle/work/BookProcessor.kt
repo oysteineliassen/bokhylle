@@ -110,14 +110,20 @@ class BookProcessor(private val app: BokhylleApp) {
      * også når sidebildet er slettet eller boka er importert uten sidebilder.
      */
     private fun cropFigures(page: Page, layout: PageLayout): PageLayout {
-        fun keyOf(box: no.oystein.bokhylle.core.Box) =
+        fun legacyKey(box: no.oystein.bokhylle.core.Box) =
             box.toList().joinToString("_") { "%.3f".format(java.util.Locale.ROOT, it) }.hashCode().toUInt().toString(16)
-        val previous = PageLayout.decode(page.layoutJson)?.blocks.orEmpty()
-            .mapNotNull { b -> val box = b.box; val img = b.image; if (box != null && img != null && File(img).exists()) keyOf(box) to img else null }
-            .toMap()
+        // Ny versjon i nøkkelen: figurer klippet før opprettingen lages på nytt når sidebildet finnes.
+        fun keyOf(box: no.oystein.bokhylle.core.Box) = "${legacyKey(box)}v$FIGURE_VERSION"
+        val previousBlocks = PageLayout.decode(page.layoutJson)?.blocks.orEmpty()
+            .mapNotNull { b -> val box = b.box; val img = b.image; if (box != null && img != null && File(img).exists()) box to img else null }
+        val previous = previousBlocks.filter { (_, img) -> "v$FIGURE_VERSION" in File(img).name }.associate { (box, img) -> keyOf(box) to img }
+        val legacy = previousBlocks.associate { (box, img) -> legacyKey(box) to img }
         val old = PageImages.figurePaths(page).toSet()
         val keep = mutableSetOf<String>()
+        val texts = layout.blocks.filter { it.type != BlockType.FIGURE && it.text.isNotBlank() }.mapNotNull { it.box }
+        val ocrLines = OcrPage.decode(page.ocrLinjer)?.lines.orEmpty()
         var bitmap: Bitmap? = null
+        var paper = 0
         try {
             val blocks = layout.blocks.mapIndexed { i, b ->
                 val box = b.box
@@ -126,8 +132,22 @@ class BookProcessor(private val app: BokhylleApp) {
                 previous[key]?.let { keep += it; return@mapIndexed b.copy(image = it) }
                 val file = File(app.files.bookDir(page.bookId), "figur-${page.id}-$i-$key.webp")
                 if (!file.exists()) {
-                    if (bitmap == null) bitmap = ImageOps.decode(page.bildeSti)
-                    val crop = bitmap?.let { ImageOps.crop(it, box) } ?: return@mapIndexed b
+                    if (bitmap == null) {
+                        bitmap = ImageOps.decode(page.bildeSti)
+                        bitmap?.let { paper = ImageOps.paperColor(it) }
+                    }
+                    val source = bitmap
+                    val crop = source?.let {
+                        val skew = no.oystein.bokhylle.core.FigureCleanup.skewDegrees(ocrLines, box, it.width, it.height)
+                        runCatching { ImageOps.figure(it, no.oystein.bokhylle.core.FigureCleanup.trimText(box, texts), skew, paper) }
+                            .onFailure { e -> Log.w(TAG, "figur på side ${page.id}", e) }
+                            .getOrNull()
+                    }
+                    if (crop == null) {
+                        // Uten sidebilde (slettet eller importert uten bilder): behold den gamle figuren.
+                        legacy[legacyKey(box)]?.let { keep += it; return@mapIndexed b.copy(image = it) }
+                        return@mapIndexed b
+                    }
                     ImageOps.save(crop, file, ImageOps.FIGURE_QUALITY)
                     crop.recycle()
                 }
@@ -143,6 +163,9 @@ class BookProcessor(private val app: BokhylleApp) {
 
     companion object {
         private const val TAG = "Bokhylle"
+
+        /** Øk når utklippingen av figurer forbedres, så eksisterende figurer lages på nytt. */
+        private const val FIGURE_VERSION = 2
 
         /** Sorteringen og flaggene for sidene slik de er nå (brukes også av kontrollskjermen for «manglende sider»). */
         fun analyze(pages: List<Page>): OrderResult = PageOrdering.order(
