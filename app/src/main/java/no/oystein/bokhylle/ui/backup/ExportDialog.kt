@@ -115,6 +115,7 @@ fun ExportDialog(book: Book, onDismiss: () -> Unit) {
                         }
                     }
                 }
+                if (kind == ExportKind.EPUB) GrayFiguresOption()
             }
         },
         confirmButton = {

@@ -65,8 +65,10 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
 - Ved feil eller uten nett beholdes ML Kit-teksten, og sidene merkes så de kan sendes senere.
 - Statusen på batcher sjekkes hvert 3. minutt, hvert minutt mens bokskjermen er åpen, og når appen startes.
 - **Figurer** klippes ut fra sidebildet og gjøres mer lik originalen: bildetekst som også vises som tekst klippes
-  bort, skjevheten måles ut fra tekstlinjene og rettes, og fargene rettes som i en skanner (papiret blir hvitt,
-  kontrasten strekkes, litt skarpere).
+  bort, skjevheten måles ut fra tekstlinjene og rettes, lyset jevnes ut, gjennomslag fra baksiden fjernes, og fargene
+  rettes som i en skanner (papiret blir hvitt, kontrasten strekkes, litt skarpere). Fargede bokser beskjæres til boksen.
+- **Figurer i gråtoner** (valg ved EPUB-eksport og «Send til Kindle», på som standard): figurene lages for Kindle uten
+  farger, så lyse linjer på farget bakgrunn fortsatt synes. Slå av for Kindle Colorsoft og Kindle-appen.
 
 ## Lagring
 

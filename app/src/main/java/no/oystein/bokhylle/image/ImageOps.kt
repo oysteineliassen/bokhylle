@@ -170,12 +170,16 @@ object ImageOps {
         for (i in px.indices) if ((px[i] ushr 24) < 128) px[i] = paper or (0xFF shl 24)
         // Faktaboks o.l. med farget bakgrunn: skjær bort sidebiter rundt boksen.
         val (l, t, r, b) = no.oystein.bokhylle.core.FigureCleanup.backgroundBounds(px, out.width, out.height, paper).toList()
-        no.oystein.bokhylle.core.FigureCleanup.enhance(px, out.width, out.height, paper)
-        out.setPixels(px, 0, out.width, 0, 0, out.width, out.height)
-        if (l == 0 && t == 0 && r == out.width && b == out.height) return out
-        val trimmed = Bitmap.createBitmap(out, l, t, r - l, b - t)
-        if (trimmed != out) out.recycle()
-        return trimmed
+        val w2 = r - l
+        val h2 = b - t
+        val inner = if (w2 == out.width && h2 == out.height) px else IntArray(w2 * h2).also { dst ->
+            for (y in 0 until h2) System.arraycopy(px, (y + t) * out.width + l, dst, y * w2, w2)
+        }
+        out.recycle()
+        // Jevnt lys og ren bakgrunn (bare tegninger/bokser, ikke fotografier), så skannerfarger.
+        no.oystein.bokhylle.core.FigureCleanup.flattenIllumination(inner, w2, h2)
+        no.oystein.bokhylle.core.FigureCleanup.enhance(inner, w2, h2, paper)
+        return Bitmap.createBitmap(inner, w2, h2, Bitmap.Config.ARGB_8888)
     }
 
     fun luminance(c: Int): Int = (Color.red(c) * 299 + Color.green(c) * 587 + Color.blue(c) * 114) / 1000

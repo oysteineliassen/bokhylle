@@ -3,7 +3,13 @@ package no.oystein.bokhylle.ui.backup
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import no.oystein.bokhylle.backup.EpubExporter
 import no.oystein.bokhylle.backup.ExportWorker
 import no.oystein.bokhylle.data.Book
 import java.io.File
@@ -76,6 +83,27 @@ fun SendToKindleButton(book: Book) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (work != null) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             Text(if (work != null) "  Lager EPUB …" else "Send til Kindle")
+        }
+    }
+    GrayFiguresOption()
+}
+
+/** «Figurer i gråtoner»: for Kindle uten farger blir figurene laget for 16 gråtoner (lyse linjer synes på farget bakgrunn). */
+@Composable
+fun GrayFiguresOption() {
+    val context = LocalContext.current
+    var gray by remember { mutableStateOf(EpubExporter.grayFigures(context)) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().toggleable(value = gray, role = Role.Checkbox) {
+            gray = it
+            EpubExporter.setGrayFigures(context, it)
+        },
+    ) {
+        Checkbox(checked = gray, onCheckedChange = null)
+        Column(Modifier.padding(start = 8.dp)) {
+            Text("Figurer i gråtoner", style = MaterialTheme.typography.bodyMedium)
+            Text("For Kindle uten fargeskjerm. Slå av for Kindle Colorsoft eller Kindle-appen.", style = MaterialTheme.typography.bodySmall)
         }
     }
 }

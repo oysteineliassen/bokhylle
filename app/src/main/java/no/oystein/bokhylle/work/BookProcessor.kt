@@ -165,7 +165,7 @@ class BookProcessor(private val app: BokhylleApp) {
         private const val TAG = "Bokhylle"
 
         /** Øk når utklippingen av figurer forbedres, så eksisterende figurer lages på nytt. */
-        private const val FIGURE_VERSION = 2
+        private const val FIGURE_VERSION = 3
 
         /** Sorteringen og flaggene for sidene slik de er nå (brukes også av kontrollskjermen for «manglende sider»). */
         fun analyze(pages: List<Page>): OrderResult = PageOrdering.order(

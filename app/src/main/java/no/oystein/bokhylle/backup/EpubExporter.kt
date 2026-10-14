@@ -27,6 +27,7 @@ object EpubExporter {
     private class Chapter(val title: String, val body: StringBuilder = StringBuilder())
 
     suspend fun export(app: BokhylleApp, bookId: Long, out: OutputStream, onProgress: (Int, Int) -> Unit = { _, _ -> }) {
+        val grayFigures = grayFigures(app)
         val book = app.db.books().get(bookId) ?: throw BackupFormatException("Fant ikke boka")
         val pages = app.db.pages().forBook(bookId).filter { it.status == Page.STATUS_FERDIG }
         val chapters = mutableListOf(Chapter(book.tittel))
@@ -71,7 +72,7 @@ object EpubExporter {
                         c.append("</aside>\n")
                     }
                     BlockType.FIGURE -> {
-                        val jpeg = b.image?.let { jpegOf(it) }
+                        val jpeg = b.image?.let { jpegOf(it, gray = grayFigures) }
                         val c = chapters.last().body
                         if (jpeg != null) {
                             val name = "bilder/figur-${images.size + 1}.jpg"
@@ -184,11 +185,33 @@ ${nonEmpty.indices.joinToString("\n") { "    <itemref idref=\"k${it + 1}\"/>" }}
         zip.flush()
     }
 
-    /** JPEG på maks [MAX_IMAGE] px og 80 % kvalitet, så fila holder seg liten (Kindle har grenser for størrelse). */
-    private fun jpegOf(path: String): ByteArray? {
+    /** Valget «figurer i gråtoner» (for Kindle uten farger), delt av eksportdialogen og «Send til Kindle». */
+    fun grayFigures(context: android.content.Context) =
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).getBoolean(KEY_GRAY, true)
+
+    fun setGrayFigures(context: android.content.Context, gray: Boolean) =
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).edit().putBoolean(KEY_GRAY, gray).apply()
+
+    private const val PREFS = "eksport"
+    private const val KEY_GRAY = "gratoner"
+
+    /**
+     * JPEG på maks [MAX_IMAGE] px og 80 % kvalitet, så fila holder seg liten (Kindle har grenser for størrelse).
+     * [gray]: gråtoneversjon laget for lesebrett uten farger (se FigureCleanup.einkGray).
+     */
+    private fun jpegOf(path: String, gray: Boolean = false): ByteArray? {
         val bmp = ImageOps.decode(path) ?: return null
         val scale = MAX_IMAGE.toFloat() / maxOf(bmp.width, bmp.height)
-        val small = if (scale < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true) else bmp
+        var small = if (scale < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true) else bmp
+        if (gray) {
+            val px = IntArray(small.width * small.height)
+            small.getPixels(px, 0, small.width, 0, 0, small.width, small.height)
+            val g = no.oystein.bokhylle.core.FigureCleanup.einkGray(px)
+            for (i in px.indices) px[i] = (0xFF shl 24) or (g[i] * 0x010101)
+            val grayBitmap = Bitmap.createBitmap(px, small.width, small.height, Bitmap.Config.ARGB_8888)
+            if (small != bmp) small.recycle()
+            small = grayBitmap
+        }
         val out = ByteArrayOutputStream()
         small.compress(Bitmap.CompressFormat.JPEG, 80, out)
         if (small != bmp) small.recycle()

@@ -86,4 +86,56 @@ class FigureCleanupTest {
         val plain = IntArray(w * h) { i -> if (i % 7 == 0) 0xFF000000.toInt() else white }
         assertEquals(listOf(0, 0, w, h), FigureCleanup.backgroundBounds(plain, w, h, white).toList())
     }
+
+    private fun rgb(r: Int, g: Int, b: Int) = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+
+    @Test
+    fun `lyset jevnes ut når en kant er mørkere`() {
+        val w = 120; val h = 80
+        // Gul bakgrunn som blir mørkere mot høyre, med svarte streker.
+        val px = IntArray(w * h) { i ->
+            val x = i % w
+            val f = 1f - 0.35f * x / w
+            if (x % 15 == 0) rgb(20, 20, 20) else rgb((230 * f).toInt(), (180 * f).toInt(), (90 * f).toInt())
+        }
+        assertTrue(FigureCleanup.flattenIllumination(px, w, h))
+        val left = (px[40 * w + 3] shr 16) and 0xFF
+        val right = (px[40 * w + w - 4] shr 16) and 0xFF
+        assertTrue(kotlin.math.abs(left - right) < 15, "venstre $left, høyre $right")
+        assertTrue(((px[40 * w + 15] shr 16) and 0xFF) < 60, "strekene skal fortsatt være mørke")
+    }
+
+    @Test
+    fun `fotografi røres ikke`() {
+        val w = 90; val h = 90
+        val rnd = java.util.Random(1)
+        val px = IntArray(w * h) { rgb(rnd.nextInt(256), rnd.nextInt(256), rnd.nextInt(256)) }
+        val before = px.copyOf()
+        assertTrue(!FigureCleanup.flattenIllumination(px, w, h))
+        assertTrue(before.contentEquals(px))
+    }
+
+    @Test
+    fun `gråtoner - hvite linjer på gult skiller seg fra bakgrunnen`() {
+        val w = 100; val h = 50
+        val px = IntArray(w * h) { i ->
+            when (i % w) {
+                in 10..12 -> rgb(250, 250, 245) // hvit linje
+                in 30..31 -> rgb(30, 30, 30) // svart strek
+                else -> rgb(230, 185, 95) // gul bakgrunn
+            }
+        }
+        val g = FigureCleanup.einkGray(px)
+        val bg = g[20 * w + 50]; val white = g[20 * w + 11]; val ink = g[20 * w + 30]
+        assertTrue(white - bg >= 40, "hvit $white mot bakgrunn $bg")
+        assertTrue(ink < 40, "blekk $ink")
+    }
+
+    @Test
+    fun `gråtoner - vanlig figur på hvitt papir får hvit bakgrunn`() {
+        val w = 100; val h = 50
+        val px = IntArray(w * h) { i -> if (i % w in 30..31) rgb(30, 30, 30) else rgb(244, 242, 238) }
+        val g = FigureCleanup.einkGray(px)
+        assertTrue(g[20 * w + 50] >= 245, "bakgrunn ${g[20 * w + 50]}")
+    }
 }
