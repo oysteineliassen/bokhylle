@@ -39,6 +39,7 @@ automatisk** går hver opplasting til Claude som egen batch, så det som allered
 
 ### Leseren
 
+- Fullskjerm: statuslinjen og navigasjonslinjen skjules mens du leser (sveip inn fra kanten for å se dem et øyeblikk).
 - Én bokside per skjerm; får ikke teksten plass, deles den over flere skjermsider. Ingen scrolling.
 - Faktabokser vises i farget boks, figurer på riktig plass (trykk for fullskjerm med zoom), fotnoter som hevet skrift
   (trykk for å lese fotnoten).

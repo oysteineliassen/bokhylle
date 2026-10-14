@@ -1,5 +1,13 @@
 package no.oystein.bokhylle.ui.reader
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.runtime.DisposableEffect
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import no.oystein.bokhylle.ui.book.findActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -93,6 +101,16 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
     val pagesOrNull by vm.pages.collectAsState()
     val settings by vm.prefs.settings.collectAsState()
     val missing by vm.missing.collectAsState()
+
+    // Fullskjerm mens boka leses: statuslinjen og navigasjonslinjen skjules, og kommer fram et øyeblikk
+    // ved sveip inn fra kanten. De vises igjen når leseren lukkes.
+    DisposableEffect(Unit) {
+        val window = context.findActivity()?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, it.decorView) }
+        controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller?.hide(WindowInsetsCompat.Type.systemBars())
+        onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
+    }
     val theme = settings.theme
     val scope = rememberCoroutineScope()
 
@@ -106,7 +124,7 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
     // Boksiden vi står på; brukes til å finne igjen plassen når teksten pagineres på nytt.
     var anchorPage by remember { mutableStateOf(startPageId) }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(theme.background)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(theme.background).windowInsetsPadding(WindowInsets.displayCutout)) {
         val pages = pagesOrNull
         val b = book
         if (pages == null || b == null) return@BoxWithConstraints
