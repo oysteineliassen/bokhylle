@@ -47,7 +47,8 @@ class ClaudeSubmitWorker(context: Context, params: WorkerParameters) : Coroutine
             app.claude.schedulePoll()
             Result.success()
         } catch (e: Exception) {
-            Log.w(TAG, "claude: kunne ikke sende batch: ${e.javaClass.simpleName}")
+            // Stakksporingen inneholder aldri API-nøkkelen (den ligger bare i en header).
+            Log.w(TAG, "claude: kunne ikke sende batch", e)
             if (e.permanent() || runAttemptCount >= 3) {
                 // Behold ML Kit-teksten, og merk sidene så de kan sendes senere.
                 val sent = app.db.claude().openJobs().flatMap { j -> j.sideIder.split(',').mapNotNull { it.toLongOrNull() } }.toSet()
@@ -102,7 +103,7 @@ class ClaudePollWorker(context: Context, params: WorkerParameters) : CoroutineWo
                 Log.d(TAG, "claude: batch ${job.batchId} ferdig, ${ok.size} ok, ${failed.size} feilet")
                 app.processor.rebuild(job.bookId)
             } catch (e: Exception) {
-                Log.w(TAG, "claude: sjekk av batch feilet: ${e.javaClass.simpleName}")
+                Log.w(TAG, "claude: sjekk av batch feilet", e)
                 if (e is NotFoundException) {
                     // Batchen finnes ikke lenger (utløpt): merk sidene for ny sending.
                     app.db.pages().setNeedsClaude(job.sideIder.split(',').mapNotNull { it.toLongOrNull() }, true)
@@ -136,7 +137,7 @@ class ClaudePageWorker(context: Context, params: WorkerParameters) : CoroutineWo
             Log.d(TAG, "claude: side ${page.id} analysert (${r.inputTokens}+${r.outputTokens} tokens)")
             Result.success()
         } catch (e: Exception) {
-            Log.w(TAG, "claude: side ${page.id} feilet: ${e.javaClass.simpleName}")
+            Log.w(TAG, "claude: side ${page.id} feilet", e)
             if (e.permanent() || runAttemptCount >= 3) {
                 app.db.pages().setNeedsClaude(listOf(page.id), true)
                 Result.success()

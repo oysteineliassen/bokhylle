@@ -1,9 +1,9 @@
 # Room, WorkManager og ML Kit har egne regler i bibliotekene.
 
 # Claude-SDK-et bruker Jackson med refleksjon (Kotlin-modulen) for modellklassene.
-# Ubrukte klasser kan fjernes, men de som brukes beholder alle medlemmer og navn.
--keepclassmembers class com.anthropic.** { *; }
--keepnames class com.anthropic.**
+# Jackson finner (de)serialiserere via refleksjon og annotasjoner; behold hele SDK-et.
+-keep class com.anthropic.** { *; }
+-keep interface com.anthropic.** { *; }
 -keep class com.fasterxml.jackson.** { *; }
 -keep class kotlin.Metadata { *; }
 -keep class kotlin.reflect.** { *; }
