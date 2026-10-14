@@ -57,6 +57,11 @@ async function need(re, what, ms) {
   return n;
 }
 const tap = (n) => sh(`adb shell input tap ${n.x} ${n.y}`);
+async function hideKeyboard() {
+  let shown = false;
+  try { shown = /mInputShown=true/.test(sh('adb shell dumpsys input_method')); } catch {}
+  if (shown) { sh('adb shell input keyevent KEYCODE_BACK'); await sleep(800); }
+}
 const type = (t) => sh(`adb shell input text '${t.replace(/ /g, '%s')}'`);
 function assertAlive() {
   let pid = '';
@@ -81,11 +86,12 @@ tap(await need(/^Tittel$/, 'tittelfelt'));
 type('Testboka');
 tap(await need(/^Forfatter$/, 'forfatterfelt'));
 type('Ola Nordmann');
+await hideKeyboard();
 tap(await need(/^Opprett bok uten sider$/, 'Opprett bok'));
 await need(/^0 sider$/, 'bokskjermen');
 shot('2-ny-bok');
 // Tilbake til biblioteket (første «tilbake» kan gå med til å skjule tastaturet).
-for (let i = 0; i < 3 && !(await waitFor((n) => n.text === 'Testboka' && /Ola/.test(visible()), 1500)); i++) {
+for (let i = 0; i < 3 && !(await waitFor((n) => n.text === 'Testboka' || n.desc === 'Testboka', 1500)); i++) {
   sh('adb shell input keyevent KEYCODE_BACK');
 }
 await need(/^Testboka$/, 'boka i biblioteket');
