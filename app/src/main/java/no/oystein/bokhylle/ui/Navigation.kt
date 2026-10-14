@@ -11,6 +11,7 @@ import no.oystein.bokhylle.ui.book.NewBookScreen
 import no.oystein.bokhylle.ui.library.LibraryScreen
 import no.oystein.bokhylle.ui.review.CropScreen
 import no.oystein.bokhylle.ui.review.ReviewScreen
+import no.oystein.bokhylle.ui.settings.SettingsScreen
 
 object Routes {
     const val LIBRARY = "bibliotek"
@@ -18,6 +19,8 @@ object Routes {
     fun book(id: Long) = "bok/$id"
     fun review(id: Long) = "kontroll/$id"
     fun crop(pageId: Long) = "beskjaer/$pageId"
+    const val SETTINGS = "innstillinger"
+    fun read(id: Long) = "les/$id"
 }
 
 @Composable
@@ -28,6 +31,7 @@ fun BokhylleNavHost() {
             LibraryScreen(
                 onOpenBook = { nav.navigate(Routes.book(it)) },
                 onNewBook = { nav.navigate(Routes.NEW_BOOK) },
+                onSettings = { nav.navigate(Routes.SETTINGS) },
             )
         }
         composable(Routes.NEW_BOOK) {
@@ -43,6 +47,7 @@ fun BokhylleNavHost() {
                 bookId = entry.arguments!!.getLong("id"),
                 onBack = { nav.popBackStack() },
                 onReview = { nav.navigate(Routes.review(it)) },
+                onSettings = { nav.navigate(Routes.SETTINGS) },
             )
         }
         composable("kontroll/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
@@ -52,6 +57,7 @@ fun BokhylleNavHost() {
                 onCrop = { nav.navigate(Routes.crop(it)) },
             )
         }
+        composable(Routes.SETTINGS) { SettingsScreen(onBack = { nav.popBackStack() }) }
         composable("beskjaer/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
             CropScreen(pageId = entry.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
         }

@@ -5,6 +5,8 @@ import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import no.oystein.bokhylle.claude.ClaudeService
 import no.oystein.bokhylle.data.AppDatabase
 import no.oystein.bokhylle.data.BookRepository
 import no.oystein.bokhylle.data.FileStore
@@ -19,6 +21,13 @@ class BokhylleApp : Application() {
     val repo by lazy { BookRepository(this, db, files) }
     val importer by lazy { Importer(this, db, files) }
     val processor by lazy { BookProcessor(this) }
+    val claude by lazy { ClaudeService(this) }
+
+    override fun onCreate() {
+        super.onCreate()
+        // Batcher som ble sendt før appen ble lukket, sjekkes videre.
+        appScope.launch { if (db.claude().openJobs().isNotEmpty()) claude.schedulePoll(0) }
+    }
 }
 
 val Context.app: BokhylleApp get() = applicationContext as BokhylleApp

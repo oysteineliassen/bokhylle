@@ -40,13 +40,31 @@ android {
         debug {
             signingConfig = signingConfigs.getByName("app")
         }
+        // Som release (krympet med R8), men med testmottakeren, så røyktesten i CI tester det som faktisk leveres.
+        create("qa") {
+            initWith(getByName("release"))
+            matchingFallbacks += "release"
+        }
+    }
+
+    packaging {
+        resources {
+            excludes += listOf(
+                "META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/INDEX.LIST",
+                "META-INF/*.kotlin_module", "META-INF/versions/9/module-info.class", "META-INF/FastDoubleParser-*",
+                "META-INF/*.version", "META-INF/thirdparty-LICENSE", "META-INF/bigint-LICENSE",
+            )
+        }
     }
 
     // Testmottakeren (røyktesten i CI) er bare med i debug-bygget.
     sourceSets {
-        getByName("debug") {
-            java.srcDir("src/testkit/java")
-            manifest.srcFile("src/testkit/AndroidManifest.xml")
+        for (name in listOf("debug", "qa")) {
+            maybeCreate(name).apply {
+                java.srcDir("src/testkit/java")
+                res.srcDir("src/testkit/res")
+                manifest.srcFile("src/testkit/AndroidManifest.xml")
+            }
         }
     }
 
@@ -95,6 +113,11 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+
+    // Claude API (offisiell SDK for Java/Kotlin).
+    implementation("com.anthropic:anthropic-java:2.68.0")
+    // SDK-et drar inn en eldre kotlin-reflect; bruk samme versjon som resten av Kotlin.
+    implementation("org.jetbrains.kotlin:kotlin-reflect:2.0.21")
 
     testImplementation("junit:junit:4.13.2")
 }

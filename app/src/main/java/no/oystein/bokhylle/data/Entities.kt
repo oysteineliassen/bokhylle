@@ -19,6 +19,12 @@ data class Book(
     val sistLestSide: Long? = null,
     /** Claude-modellen som brukes for denne boka (se ClaudeModels). */
     val claudeModell: String = "claude-sonnet-5-5",
+    /** Fast id på tvers av telefoner, brukt ved eksport/import for å kjenne igjen samme bok. */
+    val uuid: String = java.util.UUID.randomUUID().toString(),
+    /** Brukeren har kontrollert teksten; sidebildene er skalert ned og originalene slettet. */
+    val ferdigKontrollert: Boolean = false,
+    /** Sidebildene er slettet (bare figurene er beholdt). */
+    val bilderSlettet: Boolean = false,
 )
 
 @Entity(

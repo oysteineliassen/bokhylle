@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.net.Uri
 import android.util.Log
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import no.oystein.bokhylle.core.Json
 import no.oystein.bokhylle.data.Page
@@ -30,6 +31,7 @@ class TestReceiver : BroadcastReceiver() {
                 when (intent.action) {
                     "no.oystein.bokhylle.TEST_IMPORT" -> testImport(app)
                     "no.oystein.bokhylle.TEST_REPORT" -> report(app, intent.getStringExtra("title") ?: TITLE)
+                    "no.oystein.bokhylle.TEST_CLAUDE" -> testClaude(app, intent.getStringExtra("mode") ?: "batch")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "test feilet", e)
@@ -52,12 +54,29 @@ class TestReceiver : BroadcastReceiver() {
         Log.d(TAG, "test: importert ${result.added} nye, ${result.duplicates} duplikater")
     }
 
+    /** Peker Claude-klienten mot testserveren (adb reverse) og sender testboka. */
+    private suspend fun testClaude(app: BokhylleApp, mode: String) {
+        app.claude.baseUrl = "http://127.0.0.1:8089"
+        app.claude.keys.set("test-nokkel-1234")
+        val book = app.db.books().all().firstOrNull { it.tittel == TITLE } ?: return
+        val pages = app.db.pages().forBook(book.id)
+        when (mode) {
+            "single" -> app.claude.runPage(book.id, pages.first().id)
+            "poll" -> app.claude.schedulePoll(0, replace = true)
+            else -> app.claude.submitBook(book.id, pages.map { it.id })
+        }
+        Log.d(TAG, "test: claude $mode")
+    }
+
     private suspend fun report(app: BokhylleApp, title: String) {
         val book = app.db.books().all().firstOrNull { it.tittel == title }
         if (book == null) { Log.d(TAG, "RAPPORT {}"); return }
         val pages = app.db.pages().forBook(book.id)
+        val usage = app.db.claude().observeBookTotal(book.id).first()
         val json = Json.write(
             mapOf(
+                "usage" to mapOf("input" to usage.inputTokens, "output" to usage.outputTokens, "usd" to usage.kostnadUsd),
+                "openJobs" to app.db.claude().openJobs().size,
                 "pages" to pages.map { p ->
                     mapOf(
                         "id" to p.id, "status" to p.status, "number" to p.oppdagetSidetall, "inferred" to p.utledetSidetall,

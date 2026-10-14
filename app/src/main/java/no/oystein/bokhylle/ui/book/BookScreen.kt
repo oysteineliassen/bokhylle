@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import android.net.Uri
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import kotlinx.coroutines.flow.map
 import no.oystein.bokhylle.BokhylleApp
@@ -67,7 +68,13 @@ class BookViewModel(val bookId: Long, private val app: BokhylleApp) : ViewModel(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookScreen(bookId: Long, onBack: () -> Unit, onReview: (Long) -> Unit = {}) {
+fun BookScreen(
+    bookId: Long,
+    onBack: () -> Unit,
+    onReview: (Long) -> Unit = {},
+    onRead: (Long) -> Unit = {},
+    onSettings: () -> Unit = {},
+) {
     val context = LocalContext.current
     val vm: BookViewModel = viewModel(key = "bok-$bookId") { BookViewModel(bookId, context.app) }
     val copying by vm.copying.collectAsState()
@@ -125,12 +132,19 @@ fun BookScreen(bookId: Long, onBack: () -> Unit, onReview: (Long) -> Unit = {}) 
                 }
             }
 
+            if (pages.any { it.status == Page.STATUS_FERDIG }) {
+                Button(onClick = { onRead(bookId) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (b.sistLestSide == null) "Les" else "Fortsett å lese")
+                }
+            }
             if (pages.isNotEmpty()) {
                 val flagged = pages.count { it.flagget }
                 OutlinedButton(onClick = { onReview(bookId) }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (flagged > 0) "Kontroller rekkefølge ($flagged flagget)" else "Kontroller rekkefølge")
                 }
             }
+
+            if (pages.isNotEmpty()) ClaudeCard(b, pages, onSettings)
 
             Text("Legg til sider", style = MaterialTheme.typography.titleMedium)
             ImportButtons(enabled = copying == null) { uris, preCropped -> vm.import(uris, preCropped) }

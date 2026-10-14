@@ -158,4 +158,42 @@ if (/TESTBOKA|KAPITTEL EN/.test(texts)) fail('løpende topptekst står fortsatt 
 if (!rep4.pages.some((p) => /"type":"box"/.test(p.layout))) fail('faktaboksen (farget bakgrunn) ble ikke funnet');
 console.log('Tekstopprydding OK');
 
+// 5. Claude via testserveren: hele boka som batch, deretter én side som vanlig kall.
+const { spawn } = await import('node:child_process');
+const mock = spawn('node', [new URL('./mock-claude.mjs', import.meta.url).pathname], { stdio: 'inherit' });
+process.on('exit', () => mock.kill());
+await sleep(1000);
+sh('adb reverse tcp:8089 tcp:8089');
+const claudeCmd = (mode) => sh(`adb shell am broadcast -n ${PKG}/.TestReceiver -a ${PKG}.TEST_CLAUDE --es mode ${mode}`);
+claudeCmd('batch');
+let claudeRep = null;
+const claudeEnd = Date.now() + 180000;
+let polled = false;
+while (Date.now() < claudeEnd) {
+  await sleep(5000);
+  claudeRep = await report();
+  const done = (claudeRep?.pages ?? []).filter((p) => p.source === 'claude').length;
+  console.log(`  Claude: ${done} av ${claudeRep?.pages?.length} sider, åpne batcher ${claudeRep?.openJobs}`);
+  if (done === 7) break;
+  if (!polled && claudeRep?.openJobs > 0) { claudeCmd('poll'); polled = true; }
+}
+if (!claudeRep || claudeRep.pages.some((p) => p.source !== 'claude')) fail('sidene ble ikke analysert av Claude: ' + JSON.stringify(claudeRep).slice(0, 2000));
+const lay = claudeRep.pages[0].layout;
+if (!/"type":"figure"/.test(lay) || !/"image":"\//.test(lay)) fail('figuren ble ikke klippet ut: ' + lay);
+if (!/Visste du\?/.test(lay)) fail('faktaboksen mangler: ' + lay);
+if (!(claudeRep.usage.usd > 0)) fail('forbruket ble ikke logget: ' + JSON.stringify(claudeRep.usage));
+const numbers2 = claudeRep.pages.map((p) => p.number).filter(Boolean);
+if (numbers2.length < 6) fail('sidetallene forsvant etter Claude: ' + numbers2.join(','));
+const usdBatch = claudeRep.usage.usd;
+claudeCmd('single');
+let single = false;
+for (let i = 0; i < 20 && !single; i++) {
+  await sleep(3000);
+  const r = await report();
+  single = r && r.usage.usd > usdBatch;
+}
+if (!single) fail('enkeltkallet til Claude ble ikke logget');
+assertAlive();
+console.log('Claude OK');
+
 console.log('Alt OK');

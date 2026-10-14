@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Kun i debug-bygget: lar røyktesten lage testsider og lese ut resultatet. -->
+<!-- Kun i debug- og qa-bygget: lar røyktesten lage testsider og lese ut resultatet. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application>
+    <application android:networkSecurityConfig="@xml/test_network">
         <receiver
             android:name=".TestReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="no.oystein.bokhylle.TEST_IMPORT" />
                 <action android:name="no.oystein.bokhylle.TEST_REPORT" />
+                <action android:name="no.oystein.bokhylle.TEST_CLAUDE" />
             </intent-filter>
         </receiver>
     </application>
