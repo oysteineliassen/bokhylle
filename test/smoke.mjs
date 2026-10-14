@@ -248,3 +248,4 @@ assertAlive();
 console.log('Sikkerhetskopi OK');
 
 console.log('Alt OK');
+process.exit(0); // ellers holder mock-serveren (barneprosessen) node i live
