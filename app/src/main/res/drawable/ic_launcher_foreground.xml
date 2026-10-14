@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo: tre bokrygger i en hylle. Innenfor den trygge sonen (66 dp). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#7A4B2A" android:pathData="M36,38h8v32h-8z" />
+    <path android:fillColor="#3F6E5A" android:pathData="M46,34h8v36h-8z" />
+    <path android:fillColor="#B5763A" android:pathData="M57.5,38.6l7.7,-2.1l8.4,31.2l-7.7,2.1z" />
+    <path android:fillColor="#4A3A2C" android:pathData="M33,70h42v4h-42z" />
+</vector>

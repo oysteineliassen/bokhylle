@@ -1,0 +1,137 @@
+package no.oystein.bokhylle.data
+
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface BookDao {
+    @Query(
+        """
+        SELECT b.*,
+            (SELECT COUNT(*) FROM pages p WHERE p.bookId = b.id) AS antallSider,
+            (SELECT COUNT(*) FROM pages p WHERE p.bookId = b.id AND p.status = 0) AS ventende,
+            (SELECT COUNT(*) FROM pages p WHERE p.bookId = b.id AND p.flagget = 1) AS flaggede,
+            COALESCE(
+                (SELECT p.bildeSti FROM pages p WHERE p.id = b.coverPageId AND p.bookId = b.id),
+                (SELECT p.bildeSti FROM pages p WHERE p.bookId = b.id ORDER BY p.sorteringsIndeks, p.id LIMIT 1)
+            ) AS omslag,
+            (SELECT COUNT(*) FROM pages p, pages l
+                WHERE l.id = b.sistLestSide AND p.bookId = b.id AND p.sorteringsIndeks <= l.sorteringsIndeks) AS lestTil
+        FROM books b
+        ORDER BY b.opprettet DESC
+        """,
+    )
+    fun observeSummaries(): Flow<List<BookSummary>>
+
+    @Query("SELECT * FROM books WHERE id = :id")
+    fun observe(id: Long): Flow<Book?>
+
+    @Query("SELECT * FROM books WHERE id = :id")
+    suspend fun get(id: Long): Book?
+
+    @Query("SELECT * FROM books ORDER BY opprettet DESC")
+    suspend fun all(): List<Book>
+
+    @Insert
+    suspend fun insert(book: Book): Long
+
+    @Update
+    suspend fun update(book: Book)
+
+    @Delete
+    suspend fun delete(book: Book)
+
+    @Query("UPDATE books SET sistLestSide = :pageId WHERE id = :bookId")
+    suspend fun setLastRead(bookId: Long, pageId: Long)
+
+    @Query("UPDATE books SET coverPageId = :pageId WHERE id = :bookId")
+    suspend fun setCover(bookId: Long, pageId: Long?)
+}
+
+@Dao
+interface PageDao {
+    @Query("SELECT * FROM pages WHERE bookId = :bookId ORDER BY sorteringsIndeks, id")
+    fun observe(bookId: Long): Flow<List<Page>>
+
+    @Query("SELECT * FROM pages WHERE bookId = :bookId ORDER BY sorteringsIndeks, id")
+    suspend fun forBook(bookId: Long): List<Page>
+
+    @Query("SELECT * FROM pages WHERE id = :id")
+    suspend fun get(id: Long): Page?
+
+    @Query("SELECT * FROM pages WHERE bookId = :bookId AND status = 0 ORDER BY importBatch, importIndeks")
+    suspend fun pending(bookId: Long): List<Page>
+
+    @Query("SELECT DISTINCT bookId FROM pages WHERE status = 0")
+    suspend fun booksWithPending(): List<Long>
+
+    @Query("SELECT kildeHash FROM pages WHERE bookId = :bookId")
+    suspend fun hashes(bookId: Long): List<String>
+
+    @Query("SELECT COALESCE(MAX(sorteringsIndeks), -1) FROM pages WHERE bookId = :bookId")
+    suspend fun maxSortIndex(bookId: Long): Int
+
+    @Insert
+    suspend fun insert(page: Page): Long
+
+    @Update
+    suspend fun update(page: Page)
+
+    @Update
+    suspend fun updateAll(pages: List<Page>)
+
+    @Delete
+    suspend fun delete(page: Page)
+
+    @Query("UPDATE pages SET sorteringsIndeks = :index WHERE id = :id")
+    suspend fun setSortIndex(id: Long, index: Int)
+
+    @Transaction
+    suspend fun setOrder(ids: List<Long>) {
+        ids.forEachIndexed { i, id -> setSortIndex(id, i) }
+    }
+
+    @Query(
+        """
+        SELECT p.id AS pageId, p.bookId AS bookId, b.tittel AS tittel, p.oppdagetSidetall AS oppdagetSidetall,
+            COALESCE(p.redigertTekst, p.ryddetTekst, p.ocrTekst) AS tekst
+        FROM pages p JOIN books b ON b.id = p.bookId
+        WHERE p.sokeTekst LIKE '%' || :query || '%' ESCAPE '\'
+        ORDER BY b.tittel, p.sorteringsIndeks
+        LIMIT :limit
+        """,
+    )
+    suspend fun search(query: String, limit: Int = 200): List<SearchHit>
+}
+
+@Dao
+interface ClaudeDao {
+    @Insert
+    suspend fun insertUsage(usage: ApiUsage)
+
+    @Query("SELECT COALESCE(SUM(inputTokens), 0) AS inputTokens, COALESCE(SUM(outputTokens), 0) AS outputTokens, COALESCE(SUM(kostnadUsd), 0) AS kostnadUsd FROM api_bruk")
+    fun observeTotal(): Flow<UsageTotal>
+
+    @Query("SELECT COALESCE(SUM(inputTokens), 0) AS inputTokens, COALESCE(SUM(outputTokens), 0) AS outputTokens, COALESCE(SUM(kostnadUsd), 0) AS kostnadUsd FROM api_bruk WHERE bookId = :bookId")
+    fun observeBookTotal(bookId: Long): Flow<UsageTotal>
+
+    @Insert
+    suspend fun insertJob(job: ClaudeJob): Long
+
+    @Query("SELECT * FROM claude_jobber WHERE ferdig = 0")
+    suspend fun openJobs(): List<ClaudeJob>
+
+    @Query("SELECT * FROM claude_jobber WHERE ferdig = 0 AND bookId = :bookId")
+    fun observeOpenJobs(bookId: Long): Flow<List<ClaudeJob>>
+
+    @Query("UPDATE claude_jobber SET ferdig = 1 WHERE id = :id")
+    suspend fun finish(id: Long)
+
+    @Query("DELETE FROM claude_jobber WHERE bookId = :bookId")
+    suspend fun deleteJobsForBook(bookId: Long)
+}
