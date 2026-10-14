@@ -16,6 +16,7 @@ jobs:
   # Release og qa krympes med R8 hver for seg; i to parallelle jobber halveres ventetiden.
   build-qa:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Byggnummer
         # +100 så versjonene fortsetter over byggene fra det gamle test-repoet (siste var 23).
@@ -58,6 +59,7 @@ jobs:
 
   build-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Byggnummer
         # +100 så versjonene fortsetter over byggene fra det gamle test-repoet (siste var 23).
@@ -92,6 +94,7 @@ jobs:
   smoke-test:
     needs: [build-qa, build-release]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Byggnummer
         # +100 så versjonene fortsetter over byggene fra det gamle test-repoet (siste var 23).
@@ -142,6 +145,7 @@ jobs:
   release:
     needs: [build-release, smoke-test]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Byggnummer
         # +100 så versjonene fortsetter over byggene fra det gamle test-repoet (siste var 23).
