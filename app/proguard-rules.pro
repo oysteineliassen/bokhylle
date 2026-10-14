@@ -22,3 +22,5 @@
 -dontwarn org.openjsse.**
 -dontwarn com.google.errorprone.annotations.**
 -dontwarn kotlin.reflect.jvm.internal.**
+# Bare brukt av SDK-ets klassebaserte skjemagenerering (appen skriver JSON-skjemaet selv); finnes ikke på Android.
+-dontwarn java.lang.reflect.AnnotatedType
