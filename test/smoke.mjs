@@ -223,4 +223,19 @@ sh('adb shell input keyevent KEYCODE_BACK');
 assertAlive();
 console.log('Leser OK');
 
+// 7. Eksport/import og sikkerhetskopi (tur-retur på telefonen).
+sh('adb logcat -c');
+sh(`adb shell am broadcast -n ${PKG}/.TestReceiver -a ${PKG}.TEST_BACKUP`);
+let backupLine = '';
+for (let i = 0; i < 40 && !backupLine; i++) { await sleep(1500); backupLine = (log().match(/test: backup .*/) || [''])[0]; }
+console.log(backupLine);
+if (!backupLine) fail('sikkerhetskopi-testen ga ikke svar');
+if (!/uuid=true/.test(backupLine) || !/sider=(\d+)\/\1 /.test(backupLine) || !/tekst=true/.test(backupLine)) fail('eksport/import ga ikke samme bok: ' + backupLine);
+if (/figurer=0 /.test(backupLine)) fail('figurene ble ikke med i eksporten');
+if (!/skadet=true/.test(backupLine)) fail('skadet fil ble ikke avvist');
+const epubSize = +(backupLine.match(/epub=(\d+)/) || [0, 0])[1];
+if (epubSize < 1000) fail('EPUB-filen er for liten');
+assertAlive();
+console.log('Sikkerhetskopi OK');
+
 console.log('Alt OK');

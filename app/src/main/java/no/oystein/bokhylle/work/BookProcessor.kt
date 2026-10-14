@@ -105,8 +105,16 @@ class BookProcessor(private val app: BokhylleApp) {
         runCatching { Json.parse(json).obj()?.let { PageLayout.fromJson(it, PageLayout.SOURCE_CLAUDE) } }.getOrNull()
     }
 
-    /** Klipper ut figurene fra sidebildet; filnavnet er fast for samme plassering, så de gjenbrukes. */
+    /**
+     * Klipper ut figurene fra sidebildet. En figur med samme plassering som før gjenbruker bildet sitt,
+     * også når sidebildet er slettet eller boka er importert uten sidebilder.
+     */
     private fun cropFigures(page: Page, layout: PageLayout): PageLayout {
+        fun keyOf(box: no.oystein.bokhylle.core.Box) =
+            box.toList().joinToString("_") { "%.3f".format(java.util.Locale.ROOT, it) }.hashCode().toUInt().toString(16)
+        val previous = PageLayout.decode(page.layoutJson)?.blocks.orEmpty()
+            .mapNotNull { b -> val box = b.box; val img = b.image; if (box != null && img != null && File(img).exists()) keyOf(box) to img else null }
+            .toMap()
         val old = PageImages.figurePaths(page).toSet()
         val keep = mutableSetOf<String>()
         var bitmap: Bitmap? = null
@@ -114,7 +122,8 @@ class BookProcessor(private val app: BokhylleApp) {
             val blocks = layout.blocks.mapIndexed { i, b ->
                 val box = b.box
                 if (b.type != BlockType.FIGURE || box == null) return@mapIndexed b
-                val key = box.toList().joinToString("_") { "%.3f".format(java.util.Locale.ROOT, it) }.hashCode().toUInt().toString(16)
+                val key = keyOf(box)
+                previous[key]?.let { keep += it; return@mapIndexed b.copy(image = it) }
                 val file = File(app.files.bookDir(page.bookId), "figur-${page.id}-$i-$key.webp")
                 if (!file.exists()) {
                     if (bitmap == null) bitmap = ImageOps.decode(page.bildeSti)

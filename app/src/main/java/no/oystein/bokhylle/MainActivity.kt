@@ -13,6 +13,7 @@ import no.oystein.bokhylle.ui.theme.BokhylleTheme
 
 class MainActivity : ComponentActivity() {
     private var openBook by mutableStateOf<Long?>(null)
+    private var importFile by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -20,7 +21,11 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) handle(intent)
         setContent {
             BokhylleTheme {
-                BokhylleNavHost(openBookId = openBook, onOpened = { openBook = null })
+                BokhylleNavHost(
+                    openBookId = openBook,
+                    importFile = importFile,
+                    onOpened = { openBook = null; importFile = null },
+                )
             }
         }
     }
@@ -33,9 +38,11 @@ class MainActivity : ComponentActivity() {
     private fun handle(intent: Intent?) {
         val id = intent?.getLongExtra(EXTRA_BOOK, -1L) ?: -1L
         if (id >= 0) openBook = id
+        intent?.getStringExtra(EXTRA_IMPORT)?.let { importFile = it }
     }
 
     companion object {
         const val EXTRA_BOOK = "no.oystein.bokhylle.BOK"
+        const val EXTRA_IMPORT = "no.oystein.bokhylle.IMPORTER"
     }
 }

@@ -41,7 +41,7 @@ import no.oystein.bokhylle.data.UsageTotal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onImport: (path: String, undo: Boolean) -> Unit = { _, _ -> }) {
     val context = LocalContext.current
     val claude = context.app.claude
     var hint by remember { mutableStateOf(claude.keys.hint()) }
@@ -102,8 +102,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             HorizontalDivider()
-            Text("Eksport", style = MaterialTheme.typography.titleMedium)
-            Text("Eksport til EPUB kommer i en senere versjon.", style = MaterialTheme.typography.bodySmall)
+            BackupSettings(onImport)
         }
     }
 }

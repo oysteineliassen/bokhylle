@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import no.oystein.bokhylle.ui.backup.ImportScreen
 import no.oystein.bokhylle.ui.book.BookScreen
 import no.oystein.bokhylle.ui.book.NewBookScreen
 import no.oystein.bokhylle.ui.library.LibraryScreen
@@ -24,15 +25,19 @@ object Routes {
     const val SETTINGS = "innstillinger"
     fun read(id: Long, pageId: Long? = null) = "les/$id" + (pageId?.let { "?side=$it" } ?: "")
     const val SEARCH = "sok"
+    fun import(path: String, undo: Boolean = false) = "importer?fil=${android.net.Uri.encode(path)}&angre=$undo"
 }
 
 @Composable
-fun BokhylleNavHost(openBookId: Long? = null, onOpened: () -> Unit = {}) {
+fun BokhylleNavHost(openBookId: Long? = null, importFile: String? = null, onOpened: () -> Unit = {}) {
     val nav = rememberNavController()
-    // Åpnet fra «Del → Bokhylle»: gå rett til boka.
-    androidx.compose.runtime.LaunchedEffect(openBookId) {
+    // Åpnet fra «Del → Bokhylle» eller en .bokhylle-fil: gå rett til boka eller importskjermen.
+    androidx.compose.runtime.LaunchedEffect(openBookId, importFile) {
         if (openBookId != null) {
             nav.navigate(Routes.book(openBookId)) { popUpTo(Routes.LIBRARY) }
+            onOpened()
+        } else if (importFile != null) {
+            nav.navigate(Routes.import(importFile)) { popUpTo(Routes.LIBRARY) }
             onOpened()
         }
     }
@@ -79,6 +84,23 @@ fun BokhylleNavHost(openBookId: Long? = null, onOpened: () -> Unit = {}) {
                 startPageId = entry.arguments!!.getLong("side").takeIf { it >= 0 },
             )
         }
+        composable(
+            "importer?fil={fil}&angre={angre}",
+            arguments = listOf(
+                navArgument("fil") { type = NavType.StringType; defaultValue = "" },
+                navArgument("angre") { type = NavType.BoolType; defaultValue = false },
+            ),
+        ) { entry ->
+            ImportScreen(
+                path = entry.arguments!!.getString("fil").orEmpty(),
+                undo = entry.arguments!!.getBoolean("angre"),
+                onBack = { nav.popBackStack() },
+                onDone = { bookId ->
+                    if (bookId != null) nav.navigate(Routes.book(bookId)) { popUpTo(Routes.LIBRARY) }
+                    else nav.popBackStack(Routes.LIBRARY, inclusive = false)
+                },
+            )
+        }
         composable(Routes.SEARCH) {
             SearchScreen(
                 onBack = { nav.popBackStack() },
@@ -86,7 +108,9 @@ fun BokhylleNavHost(openBookId: Long? = null, onOpened: () -> Unit = {}) {
                 onOpenPage = { book, page -> nav.navigate(Routes.read(book, page)) },
             )
         }
-        composable(Routes.SETTINGS) { SettingsScreen(onBack = { nav.popBackStack() }) }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(onBack = { nav.popBackStack() }, onImport = { path, undo -> nav.navigate(Routes.import(path, undo)) })
+        }
         composable("beskjaer/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
             CropScreen(pageId = entry.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
         }

@@ -148,6 +148,11 @@ fun BookScreen(
 
             if (pages.isNotEmpty() && !b.bilderSlettet) ClaudeCard(b, pages, onSettings)
             if (pages.isNotEmpty()) StorageCard(b, pages)
+            if (pages.isNotEmpty()) {
+                var exporting by remember { mutableStateOf(false) }
+                OutlinedButton(onClick = { exporting = true }, modifier = Modifier.fillMaxWidth()) { Text("Eksporter (Bokhylle-fil eller EPUB) …") }
+                if (exporting) no.oystein.bokhylle.ui.backup.ExportDialog(b) { exporting = false }
+            }
 
             Text("Legg til sider", style = MaterialTheme.typography.titleMedium)
             ImportButtons(enabled = copying == null) { uris, preCropped -> vm.import(uris, preCropped) }

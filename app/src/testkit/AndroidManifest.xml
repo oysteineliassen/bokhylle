@@ -9,6 +9,7 @@
                 <action android:name="no.oystein.bokhylle.TEST_IMPORT" />
                 <action android:name="no.oystein.bokhylle.TEST_REPORT" />
                 <action android:name="no.oystein.bokhylle.TEST_CLAUDE" />
+                <action android:name="no.oystein.bokhylle.TEST_BACKUP" />
             </intent-filter>
         </receiver>
     </application>

@@ -32,6 +32,7 @@ class TestReceiver : BroadcastReceiver() {
                     "no.oystein.bokhylle.TEST_IMPORT" -> testImport(app)
                     "no.oystein.bokhylle.TEST_REPORT" -> report(app, intent.getStringExtra("title") ?: TITLE)
                     "no.oystein.bokhylle.TEST_CLAUDE" -> testClaude(app, intent.getStringExtra("mode") ?: "batch")
+                    "no.oystein.bokhylle.TEST_BACKUP" -> testBackup(app)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "test feilet", e)
@@ -68,6 +69,39 @@ class TestReceiver : BroadcastReceiver() {
             else -> app.claude.submitBook(book.id, pages.map { it.id })
         }
         Log.d(TAG, "test: claude $mode")
+    }
+
+    /**
+     * Eksporterer testboka som .bokhylle og importerer den igjen som kopi, lager EPUB, og tar en sikkerhetskopi
+     * av biblioteket og forhåndsviser den. Resultatet skrives til loggen («test: backup …»).
+     */
+    private suspend fun testBackup(app: BokhylleApp) {
+        val book = app.db.books().all().first { it.tittel == TITLE }
+        val pages = app.db.pages().forBook(book.id)
+        val dir = File(app.cacheDir, "testkopi").apply { deleteRecursively(); mkdirs() }
+        val bookFile = File(dir, "bok.bokhylle")
+        bookFile.outputStream().use { no.oystein.bokhylle.backup.BookPackage.export(app, book.id, it, withImages = false) }
+        val info = bookFile.inputStream().use { no.oystein.bokhylle.backup.BookPackage.peek(it) }
+        val copyId = bookFile.inputStream().use { no.oystein.bokhylle.backup.BookPackage.import(app, it, newUuid = true) }
+        val copy = app.db.pages().forBook(copyId)
+        val sameText = copy.map { it.ryddetTekst } == pages.map { it.ryddetTekst }
+        val figures = copy.flatMap { no.oystein.bokhylle.data.PageImages.figurePaths(it) }.count { File(it).exists() }
+        val epub = File(dir, "bok.epub")
+        epub.outputStream().use { no.oystein.bokhylle.backup.EpubExporter.export(app, book.id, it) }
+        val backupFile = File(dir, "alt.bokhylle-backup")
+        backupFile.outputStream().use { app.backup.write(it) }
+        val preview = backupFile.inputStream().use { app.backup.preview(it) }
+        // Skadet fil skal gi en feilmelding, ikke krasj.
+        val broken = File(dir, "skadet.bokhylle").apply { writeBytes(bookFile.readBytes().copyOf(200)) }
+        val brokenOk = runCatching { broken.inputStream().use { no.oystein.bokhylle.backup.BookPackage.import(app, it, newUuid = true) } }.isFailure
+        val booksAfter = app.db.books().all().size
+        Log.d(
+            TAG,
+            "test: backup uuid=${info.uuid == book.uuid} sider=${copy.size}/${pages.size} tekst=$sameText figurer=$figures " +
+                "epub=${epub.length()} kopi=${preview.books.size} like=${preview.compare.count { it.status.name == "SAME" }} " +
+                "skadet=$brokenOk bøker=$booksAfter",
+        )
+        app.repo.deleteBook(copyId)
     }
 
     private suspend fun report(app: BokhylleApp, title: String) {

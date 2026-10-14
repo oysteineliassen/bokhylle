@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Filer som deles med andre apper (eksport via «Del»). -->
+<paths>
+    <cache-path name="del" path="del/" />
+</paths>

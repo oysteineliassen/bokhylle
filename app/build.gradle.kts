@@ -108,6 +108,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation("androidx.documentfile:documentfile:1.0.1")
 
     // OCR på telefonen (modellen ligger i appen, virker uten nett) og dokumentskanneren fra Google Play-tjenester.
     implementation("com.google.mlkit:text-recognition:16.0.1")

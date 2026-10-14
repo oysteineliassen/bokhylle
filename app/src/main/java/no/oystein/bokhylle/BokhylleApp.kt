@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import no.oystein.bokhylle.backup.BackupManager
 import no.oystein.bokhylle.claude.ClaudeService
 import no.oystein.bokhylle.data.AppDatabase
 import no.oystein.bokhylle.data.BookRepository
@@ -24,6 +25,7 @@ class BokhylleApp : Application() {
     val processor by lazy { BookProcessor(this) }
     val claude by lazy { ClaudeService(this) }
     val readerPrefs by lazy { ReaderPrefs(this) }
+    val backup by lazy { BackupManager(this) }
 
     override fun onCreate() {
         super.onCreate()
