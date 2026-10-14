@@ -11,6 +11,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import no.oystein.bokhylle.data.BookRepository
+import kotlinx.coroutines.sync.Mutex
 import java.util.concurrent.TimeUnit
 
 /** Innstillinger og oppstart av Claude-jobber. */
@@ -56,18 +57,35 @@ class ClaudeService(private val context: Context) {
         WorkManager.getInstance(context).enqueueUniqueWork("claude-side-$pageId", ExistingWorkPolicy.REPLACE, request)
     }
 
-    /** Sjekker batchene som venter. Første sjekk etter [delayMinutes] minutter. */
-    fun schedulePoll(delayMinutes: Long = 1, replace: Boolean = false) {
+    /** Bare én sjekk av batchene om gangen (den faste og «sjekk nå» kan ellers lagre samme resultat to ganger). */
+    val pollLock = Mutex()
+
+    /**
+     * Sjekker batchene som venter, første gang etter [delayMinutes] minutter og deretter hvert
+     * [ClaudePollWorker.INTERVAL_MINUTES]. minutt så lenge noe venter.
+     */
+    fun schedulePoll(delayMinutes: Long = 1, replace: Boolean = false) =
+        enqueuePoll(delayMinutes, if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP)
+
+    /** Neste faste sjekk, lagt etter den som kjører nå. */
+    internal fun scheduleNextPoll() = enqueuePoll(ClaudePollWorker.INTERVAL_MINUTES, ExistingWorkPolicy.APPEND_OR_REPLACE)
+
+    private fun enqueuePoll(delayMinutes: Long, policy: ExistingWorkPolicy) {
         val request = OneTimeWorkRequestBuilder<ClaudePollWorker>()
             .setInitialDelay(delayMinutes, TimeUnit.MINUTES)
             .setConstraints(online)
             .setBackoffCriteria(BackoffPolicy.LINEAR, 2, TimeUnit.MINUTES)
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            ClaudePollWorker.NAME,
-            if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
-            request,
-        )
+        WorkManager.getInstance(context).enqueueUniqueWork(ClaudePollWorker.NAME, policy, request)
+    }
+
+    /** Sjekker med en gang (når bokskjermen er åpen), uten å forstyrre den faste sjekken. */
+    fun checkNow() {
+        val request = OneTimeWorkRequestBuilder<ClaudePollWorker>()
+            .setInputData(workDataOf(ClaudePollWorker.KEY_ONCE to true))
+            .setConstraints(online)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(ClaudePollWorker.NAME_NOW, ExistingWorkPolicy.KEEP, request)
     }
 
     private val online = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()

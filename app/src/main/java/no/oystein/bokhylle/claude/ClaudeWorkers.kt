@@ -11,6 +11,7 @@ import com.anthropic.errors.UnauthorizedException
 import com.anthropic.models.messages.batches.BatchCreateParams
 import com.anthropic.models.messages.batches.MessageBatch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import no.oystein.bokhylle.app
 import no.oystein.bokhylle.data.ApiUsage
@@ -69,9 +70,20 @@ class ClaudeSubmitWorker(context: Context, params: WorkerParameters) : Coroutine
 class ClaudePollWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val app = applicationContext.app
+        val once = inputData.getBoolean(KEY_ONCE, false)
+        val pending = app.claude.pollLock.withLock { check(app) } ?: return@withContext Result.success()
+        if (pending > 0) {
+            // Fast intervall i stedet for stadig lengre ventetid: batcher blir ofte ferdige etter en time eller to.
+            if (once) app.claude.schedulePoll(INTERVAL_MINUTES) else app.claude.scheduleNextPoll()
+        }
+        Result.success()
+    }
+
+    /** Henter resultatene for ferdige batcher. Gir antall som fortsatt venter, eller null uten nøkkel. */
+    private suspend fun check(app: no.oystein.bokhylle.BokhylleApp): Int? {
         val jobs = app.db.claude().openJobs()
-        if (jobs.isEmpty()) return@withContext Result.success()
-        val client = try { app.claude.client() } catch (e: Exception) { return@withContext Result.success() }
+        if (jobs.isEmpty()) return 0
+        val client = try { app.claude.client() } catch (e: Exception) { return null }
         var pending = 0
         for (job in jobs) {
             try {
@@ -111,11 +123,14 @@ class ClaudePollWorker(context: Context, params: WorkerParameters) : CoroutineWo
                 } else pending++
             }
         }
-        if (pending > 0) Result.retry() else Result.success()
+        return pending
     }
 
     companion object {
         const val NAME = "claude-sjekk"
+        const val NAME_NOW = "claude-sjekk-na"
+        const val KEY_ONCE = "en_gang"
+        const val INTERVAL_MINUTES = 3L
     }
 }
 

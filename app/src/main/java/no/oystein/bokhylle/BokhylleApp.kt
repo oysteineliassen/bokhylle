@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import no.oystein.bokhylle.backup.BackupManager
+import no.oystein.bokhylle.claude.ClaudePollWorker
 import no.oystein.bokhylle.claude.ClaudeService
 import no.oystein.bokhylle.data.AppDatabase
 import no.oystein.bokhylle.data.BookRepository
@@ -30,7 +31,7 @@ class BokhylleApp : Application() {
     override fun onCreate() {
         super.onCreate()
         // Batcher som ble sendt før appen ble lukket, sjekkes videre.
-        appScope.launch { if (db.claude().openJobs().isNotEmpty()) claude.schedulePoll(0) }
+        appScope.launch { if (db.claude().openJobs().isNotEmpty()) { claude.checkNow(); claude.schedulePoll(ClaudePollWorker.INTERVAL_MINUTES) } }
     }
 }
 

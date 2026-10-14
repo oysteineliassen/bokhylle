@@ -14,12 +14,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -52,6 +54,15 @@ fun ClaudeCard(book: Book, pages: List<Page>, onOpenSettings: () -> Unit) {
     val missing = ready.filter { it.blocksJson == null && it.id !in waiting }
     val flagged = ready.filter { it.flagget && it.id !in waiting }
     val failed = ready.count { it.trengerClaude }
+
+    // Mens bokskjermen er åpen og noe venter hos Claude: sjekk hvert minutt, så resultatet vises med en gang det er klart.
+    val anyWaiting = jobs.isNotEmpty()
+    LaunchedEffect(anyWaiting) {
+        while (anyWaiting) {
+            app.claude.checkNow()
+            delay(60_000)
+        }
+    }
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
