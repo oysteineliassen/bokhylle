@@ -86,7 +86,6 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
 ## Utvikling
 
 ```bash
-cd bokhylle
 gradle :core:test                  # kjernelogikken (ren Kotlin, ingen Android SDK)
 gradle assembleDebug               # krever Android SDK
 gradle assembleQa                  # som release (R8), med testmottakeren som røyktesten bruker
