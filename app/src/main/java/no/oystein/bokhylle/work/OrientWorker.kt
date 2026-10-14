@@ -45,6 +45,8 @@ class OrientWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             }
             done++
         }
+        // Sidetall og rekkefølge regnes ut på nytt også når ingenting ble snudd (f.eks. etter en ny app-versjon).
+        app.processor.rebuild(bookId)
         Log.d(ProcessWorker.TAG, "retning: $rotated av ${images.size} bilder rotert")
         return Result.success(workDataOf(KEY_DONE to done, KEY_TOTAL to images.size, KEY_ROTATED to rotated))
     }

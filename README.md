@@ -21,7 +21,10 @@ Last ned `Bokhylle-1.0.N.apk` på telefonen og åpne den. Nye versjoner installe
 4. **Kontroller rekkefølge** viser alle sidene. Flaggede sider (mangler sidetall, duplikat, hopp/tilbakegang) er uthevet,
    og manglende sider vises («Mangler 48»), med knapp for å legge dem inn. Hold inne og dra for å flytte en side.
    Trykk på en side for å sette sidetall, godkjenne, slette, bruke som omslag, justere hjørnene eller rotere bildet.
-   **Rett opp liggende bilder** sjekker retningen på alle bildene i boka på nytt og snur og deler dem som ligger feil.
+   **Rett opp liggende bilder** sjekker retningen på alle bildene i boka på nytt og snur og deler dem som ligger feil,
+   og finner sidetallene på nytt.
+   Sidetallene i en innholdsfortegnelse (oppføringer som ender på et tall, eller en kolonne med tall) brukes ikke som
+   sidens eget sidetall.
 5. **Send til Claude** (valgfritt, krever API-nøkkel) for riktige avsnitt, overskrifter, faktabokser, figurer og fotnoter.
 6. **Les**: trykk på høyre tredjedel for neste side, venstre for forrige, midten for menyen. Sveip virker også.
 

@@ -33,8 +33,12 @@ object PageNumberDetector {
         val zone = span * ZONE
         val medianHeight = lines.map { it.height }.median()
 
+        val toc = TocColumns.find(lines)
+
         val candidates = mutableListOf<Pair<DetectedPageNumber, Float>>()
         lines.forEachIndexed { index, line ->
+            // Innholdsfortegnelse: tallene i høyrekolonnen og «Kapittel …… 133» er henvisninger, ikke sidens sidetall.
+            if (toc != null && (index in toc.entryLines || toc.inColumn(line))) return@forEachIndexed
             val inTop = line.centerY <= top + zone
             val inBottom = line.centerY >= bottom - zone
             if (!inTop && !inBottom) return@forEachIndexed
@@ -47,7 +51,7 @@ object PageNumberDetector {
             parseToken(line.text, allowRoman = true)?.let { n ->
                 candidates += DetectedPageNumber(n, index, true, line.text, line.confidence) to (2f + edge)
             }
-            if (tokens.size >= 2) {
+            if (tokens.size >= 2 && toc == null) {
                 // Topptekst med sidetall i ytterkant: tall først eller sist, aldri romertall (for lett å forveksle med ord).
                 for (token in listOf(tokens.first(), tokens.last())) {
                     val n = parseToken(token, allowRoman = false) ?: continue
@@ -97,5 +101,48 @@ object PageNumberDetector {
             if (v in 1..MAX_ROMAN) return PageNumber(v, roman = true)
         }
         return null
+    }
+}
+
+/**
+ * Kjenner igjen en innholdsfortegnelse (eller et register): mange linjer som ender på et sidetall,
+ * eller en kolonne av frittstående tall langs samme høyrekant.
+ */
+internal class TocColumns private constructor(
+    /** Linjer som er en oppføring med tall til slutt («Innledning ...... 17»). */
+    val entryLines: Set<Int>,
+    /** Høyrekantene til kolonner av frittstående tall. */
+    private val columnRights: List<Float>,
+) {
+    fun inColumn(line: OcrLine): Boolean = columnRights.any { kotlin.math.abs(line.right - it) <= ALIGN }
+
+    companion object {
+        /** Hvor nær høyrekantene må være for å regnes som samme kolonne (andel av bildebredden). */
+        private const val ALIGN = 0.02f
+        private const val MIN_ENTRIES = 5
+        private const val MIN_COLUMN = 4
+
+        fun find(lines: List<OcrLine>): TocColumns? {
+            val entries = mutableSetOf<Int>()
+            val standalone = mutableListOf<OcrLine>()
+            lines.forEachIndexed { i, line ->
+                val tokens = line.text.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+                if (tokens.isEmpty()) return@forEachIndexed
+                val last = PageNumberDetector.parseToken(tokens.last(), allowRoman = false)
+                when {
+                    tokens.size == 1 && last != null -> standalone += line
+                    last != null && tokens.dropLast(1).any { t -> t.any(Char::isLetter) } -> entries += i
+                }
+            }
+            // Kolonner: frittstående tall som står under hverandre med samme høyrekant.
+            val columns = mutableListOf<Float>()
+            for (line in standalone.sortedBy { it.right }) {
+                if (columns.any { kotlin.math.abs(line.right - it) <= ALIGN }) continue
+                val aligned = standalone.count { kotlin.math.abs(it.right - line.right) <= ALIGN }
+                if (aligned >= MIN_COLUMN) columns += line.right
+            }
+            if (entries.size < MIN_ENTRIES && columns.isEmpty()) return null
+            return TocColumns(entries, columns)
+        }
     }
 }
