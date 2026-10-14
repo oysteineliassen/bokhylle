@@ -196,4 +196,29 @@ if (!single) fail('enkeltkallet til Claude ble ikke logget');
 assertAlive();
 console.log('Claude OK');
 
+// 6. Leseren: åpne boka, bla med trykk i høyre tredjedel, åpne menyen i midten.
+sh(`adb shell am force-stop ${PKG}`);
+sh(`adb shell am start -W -n ${PKG}/.MainActivity`);
+tap(await need(/^Testbok OCR$/, 'testboka', 20000));
+tap(await need(/^(Les|Fortsett å lese)$/, 'Les-knappen'));
+await need(/Tekst fra Claude for side/, 'teksten i leseren', 20000);
+const [W, H] = sh('adb shell wm size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+const footer = () => nodes(dump()).map((n) => n.text).find((t) => /\d+ \/ 7$/.test(t)) ?? '';
+const before = footer();
+sh(`adb shell input tap ${Math.round(W * 0.9)} ${Math.round(H / 2)}`);
+await sleep(1500);
+const after = footer();
+shot('6-leser');
+if (before === after) fail(`trykk til høyre bladde ikke (${before} → ${after})`);
+sh(`adb shell input tap ${Math.round(W / 2)} ${Math.round(H / 2)}`);
+await need(/^Vis original$/, 'menyen (Vis original)');
+await need(/^Skrift$/, 'skriftvalg i menyen');
+shot('7-meny');
+tap(await need(/^Vis original$/, 'Vis original'));
+await need(/^Marker område$/, 'originalbildet');
+shot('8-original');
+sh('adb shell input keyevent KEYCODE_BACK');
+assertAlive();
+console.log('Leser OK');
+
 console.log('Alt OK');

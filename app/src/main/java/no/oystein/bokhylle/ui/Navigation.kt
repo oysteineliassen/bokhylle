@@ -9,6 +9,7 @@ import androidx.navigation.navArgument
 import no.oystein.bokhylle.ui.book.BookScreen
 import no.oystein.bokhylle.ui.book.NewBookScreen
 import no.oystein.bokhylle.ui.library.LibraryScreen
+import no.oystein.bokhylle.ui.reader.ReaderScreen
 import no.oystein.bokhylle.ui.review.CropScreen
 import no.oystein.bokhylle.ui.review.ReviewScreen
 import no.oystein.bokhylle.ui.settings.SettingsScreen
@@ -47,6 +48,7 @@ fun BokhylleNavHost() {
                 bookId = entry.arguments!!.getLong("id"),
                 onBack = { nav.popBackStack() },
                 onReview = { nav.navigate(Routes.review(it)) },
+                onRead = { nav.navigate(Routes.read(it)) },
                 onSettings = { nav.navigate(Routes.SETTINGS) },
             )
         }
@@ -56,6 +58,9 @@ fun BokhylleNavHost() {
                 onBack = { nav.popBackStack() },
                 onCrop = { nav.navigate(Routes.crop(it)) },
             )
+        }
+        composable("les/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+            ReaderScreen(bookId = entry.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
         }
         composable(Routes.SETTINGS) { SettingsScreen(onBack = { nav.popBackStack() }) }
         composable("beskjaer/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->

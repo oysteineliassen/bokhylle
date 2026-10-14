@@ -11,6 +11,7 @@ import no.oystein.bokhylle.data.AppDatabase
 import no.oystein.bokhylle.data.BookRepository
 import no.oystein.bokhylle.data.FileStore
 import no.oystein.bokhylle.importer.Importer
+import no.oystein.bokhylle.ui.reader.ReaderPrefs
 import no.oystein.bokhylle.work.BookProcessor
 
 class BokhylleApp : Application() {
@@ -22,6 +23,7 @@ class BokhylleApp : Application() {
     val importer by lazy { Importer(this, db, files) }
     val processor by lazy { BookProcessor(this) }
     val claude by lazy { ClaudeService(this) }
+    val readerPrefs by lazy { ReaderPrefs(this) }
 
     override fun onCreate() {
         super.onCreate()
