@@ -14,6 +14,8 @@ function shot(name) {
 function log() { try { return sh(`adb logcat -d -s Bokhylle:D`); } catch { return ''; } }
 function fail(msg) {
   console.error('FEIL: ' + msg);
+  try { console.error('UI:\n' + nodes(dump()).map((n) => `${JSON.stringify(n.text)} ${JSON.stringify(n.desc)} [${n.b}]`).join('\n')); } catch {}
+  try { console.error(sh('adb shell wm size') + ' ' + sh('adb shell wm density')); } catch {}
   console.error('Bokhylle-logg:\n' + log());
   try { console.error(sh(`adb logcat -d -s AndroidRuntime:E | tail -80`)); } catch {}
   shot('feil');
@@ -131,5 +133,21 @@ if (pages.some((p) => !p.crop || p.crop === '0.0,0.0,1.0,0.0,1.0,1.0,0.0,1.0')) 
 if (!pages.some((p) => /hyllen|bladd/.test(p.text))) fail('OCR-teksten mangler forventede ord');
 assertAlive();
 console.log('Import og OCR OK');
+
+// 4. Sortering: sidetallene skal stå i stigende rekkefølge, og side 5 mangler.
+const order = pages.map((p) => parseInt(p.number ?? p.inferred?.replace(/[()]/g, ''), 10)).filter((n) => !isNaN(n));
+for (let i = 1; i < order.length; i++) if (order[i] < order[i - 1]) fail('feil rekkefølge: ' + order.join(','));
+const six = pages.find((p) => p.number === '6');
+if (six && !/HOPP/.test(six.flags)) fail('side 6 burde vært flagget for hopp (side 5 mangler): ' + six.flags);
+// Kontrollskjermen viser manglende side.
+sh(`adb shell am force-stop ${PKG}`);
+sh(`adb shell am start -W -n ${PKG}/.MainActivity`);
+tap(await need(/^Testbok OCR$/, 'testboka i biblioteket', 20000));
+tap(await need(/^Kontroller rekkefølge/, 'Kontroller rekkefølge'));
+await need(/^Mangler 5$/, 'manglende side 5');
+shot('4-kontroll');
+assertAlive();
+sh('adb shell input keyevent KEYCODE_BACK');
+console.log('Sortering og kontrollskjerm OK');
 
 console.log('Alt OK');

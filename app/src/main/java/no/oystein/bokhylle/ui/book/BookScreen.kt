@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import android.net.Uri
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import kotlinx.coroutines.flow.map
 import no.oystein.bokhylle.BokhylleApp
 import no.oystein.bokhylle.app
@@ -66,7 +67,7 @@ class BookViewModel(val bookId: Long, private val app: BokhylleApp) : ViewModel(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookScreen(bookId: Long, onBack: () -> Unit) {
+fun BookScreen(bookId: Long, onBack: () -> Unit, onReview: (Long) -> Unit = {}) {
     val context = LocalContext.current
     val vm: BookViewModel = viewModel(key = "bok-$bookId") { BookViewModel(bookId, context.app) }
     val copying by vm.copying.collectAsState()
@@ -121,6 +122,13 @@ fun BookScreen(bookId: Long, onBack: () -> Unit) {
                         },
                         style = MaterialTheme.typography.bodySmall,
                     )
+                }
+            }
+
+            if (pages.isNotEmpty()) {
+                val flagged = pages.count { it.flagget }
+                OutlinedButton(onClick = { onReview(bookId) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (flagged > 0) "Kontroller rekkefølge ($flagged flagget)" else "Kontroller rekkefølge")
                 }
             }
 

@@ -9,11 +9,15 @@ import androidx.navigation.navArgument
 import no.oystein.bokhylle.ui.book.BookScreen
 import no.oystein.bokhylle.ui.book.NewBookScreen
 import no.oystein.bokhylle.ui.library.LibraryScreen
+import no.oystein.bokhylle.ui.review.CropScreen
+import no.oystein.bokhylle.ui.review.ReviewScreen
 
 object Routes {
     const val LIBRARY = "bibliotek"
     const val NEW_BOOK = "ny"
     fun book(id: Long) = "bok/$id"
+    fun review(id: Long) = "kontroll/$id"
+    fun crop(pageId: Long) = "beskjaer/$pageId"
 }
 
 @Composable
@@ -38,7 +42,18 @@ fun BokhylleNavHost() {
             BookScreen(
                 bookId = entry.arguments!!.getLong("id"),
                 onBack = { nav.popBackStack() },
+                onReview = { nav.navigate(Routes.review(it)) },
             )
+        }
+        composable("kontroll/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+            ReviewScreen(
+                bookId = entry.arguments!!.getLong("id"),
+                onBack = { nav.popBackStack() },
+                onCrop = { nav.navigate(Routes.crop(it)) },
+            )
+        }
+        composable("beskjaer/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+            CropScreen(pageId = entry.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
         }
     }
 }
