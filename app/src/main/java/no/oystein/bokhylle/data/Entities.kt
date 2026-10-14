@@ -25,6 +25,10 @@ data class Book(
     val ferdigKontrollert: Boolean = false,
     /** Sidebildene er slettet (bare figurene er beholdt). */
     val bilderSlettet: Boolean = false,
+    /** Hvor mange sider boka har totalt (brukerens tall); null = høyeste sidetall som er funnet. */
+    val antallSiderTotalt: Int? = null,
+    /** Send hver ny opplasting til Claude som egen batch. */
+    val claudeAuto: Boolean = false,
     /** Sist noe i boka ble endret (tekst, rekkefølge, sider); brukes ved gjenoppretting for å finne nyeste versjon. */
     val sistEndret: Long = System.currentTimeMillis(),
 )
@@ -159,6 +163,9 @@ data class ClaudeJob(
 )
 
 data class UsageTotal(val inputTokens: Long, val outputTokens: Long, val kostnadUsd: Double)
+
+/** Sidetallet for en ferdig behandlet side (for «sider lagt inn» i biblioteket). */
+data class PageNumberRow(val bookId: Long, val oppdagetSidetall: String?, val utledetSidetall: String?)
 
 /** Treff i fulltekstsøket. */
 data class SearchHit(

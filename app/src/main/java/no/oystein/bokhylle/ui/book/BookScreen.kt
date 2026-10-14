@@ -66,6 +66,10 @@ class BookViewModel(val bookId: Long, private val app: BokhylleApp) : ViewModel(
     val pages: StateFlow<List<Page>> = repo.pages(bookId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun delete(done: () -> Unit) = viewModelScope.launch { repo.deleteBook(bookId); done() }
+
+    fun setTotal(total: Int?) = viewModelScope.launch {
+        book.value?.let { repo.updateBook(it.copy(antallSiderTotalt = total?.takeIf { n -> n > 0 })) }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -104,6 +108,33 @@ fun BookScreen(
             val pending = pages.count { it.status == Page.STATUS_NY }
             val failed = pages.count { it.status == Page.STATUS_FEIL }
             Text("${pages.size} sider", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth())
+            var editTotal by remember { mutableStateOf(false) }
+            Text(
+                (if (b.ferdigKontrollert) "Ferdig" else "Under arbeid") +
+                    (pagesDescription(b, pages.filter { it.status == Page.STATUS_FERDIG }.map { it.oppdagetSidetall ?: it.utledetSidetall })
+                        ?.let { " · sider lagt inn: $it" } ?: ""),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            TextButton(onClick = { editTotal = true }) {
+                Text(if (b.antallSiderTotalt == null) "Oppgi hvor mange sider boka har" else "Boka har ${b.antallSiderTotalt} sider (endre)")
+            }
+            if (editTotal) {
+                var text by remember { mutableStateOf(b.antallSiderTotalt?.toString() ?: "") }
+                AlertDialog(
+                    onDismissRequest = { editTotal = false },
+                    title = { Text("Antall sider i boka") },
+                    text = {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = text, onValueChange = { text = it.filter(Char::isDigit) }, singleLine = true,
+                            label = { Text("Siste sidetall") },
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { vm.setTotal(text.toIntOrNull()); editTotal = false }) { Text("Lagre") }
+                    },
+                    dismissButton = { TextButton(onClick = { editTotal = false }) { Text("Avbryt") } },
+                )
+            }
 
             copying?.let { p ->
                 Text("Kopierer bilder: ${p.done} av ${p.total}")

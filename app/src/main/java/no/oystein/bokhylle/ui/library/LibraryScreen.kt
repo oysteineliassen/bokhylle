@@ -70,6 +70,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import no.oystein.bokhylle.ui.book.formatBytes
+import no.oystein.bokhylle.ui.book.pagesDescription
 import no.oystein.bokhylle.ui.theme.Accent
 import java.io.File
 
@@ -84,6 +85,11 @@ class LibraryViewModel(private val repo: BookRepository) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     fun deleteImages(bookId: Long) = viewModelScope.launch { repo.deleteImages(bookId) }
+
+    /** Sidetallene som er lagt inn, per bok. */
+    val numbers: StateFlow<Map<Long, List<String?>>> = repo.db.pages().observeNumbers()
+        .map { rows -> rows.groupBy({ it.bookId }, { it.oppdagetSidetall ?: it.utledetSidetall }) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     fun delete(bookId: Long) = viewModelScope.launch { repo.deleteBook(bookId) }
 }
@@ -100,6 +106,7 @@ fun LibraryScreen(
     val vm: LibraryViewModel = viewModel { LibraryViewModel(context.app.repo) }
     val books by vm.books.collectAsState()
     val sizes by vm.sizes.collectAsState()
+    val numbers by vm.numbers.collectAsState()
     var toDelete by remember { mutableStateOf<BookSummary?>(null) }
     var toStrip by remember { mutableStateOf<BookSummary?>(null) }
 
@@ -141,7 +148,7 @@ fun LibraryScreen(
             ) {
                 items(list, key = { it.book.id }) { summary ->
                     BookCard(
-                        summary, sizes[summary.book.id],
+                        summary, sizes[summary.book.id], numbers[summary.book.id].orEmpty(),
                         onClick = { onOpenBook(summary.book.id) },
                         onDelete = { toDelete = summary },
                         onDeleteImages = { toStrip = summary },
@@ -176,7 +183,14 @@ fun LibraryScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BookCard(summary: BookSummary, size: Long?, onClick: () -> Unit, onDelete: () -> Unit, onDeleteImages: () -> Unit) {
+private fun BookCard(
+    summary: BookSummary,
+    size: Long?,
+    numbers: List<String?>,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    onDeleteImages: () -> Unit,
+) {
     var menu by remember { mutableStateOf(false) }
     Column(
         Modifier
@@ -228,6 +242,13 @@ private fun BookCard(summary: BookSummary, size: Long?, onClick: () -> Unit, onD
         if (summary.book.forfatter.isNotBlank()) {
             Text(summary.book.forfatter, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        val book = summary.book
+        if (!book.ferdigKontrollert) {
+            Text("Under arbeid", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+            pagesDescription(book, numbers)?.let {
+                Text("Sider: $it", style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
         Spacer(Modifier.height(4.dp))
         if (summary.ventende > 0) {
             val done = summary.antallSider - summary.ventende
@@ -240,6 +261,11 @@ private fun BookCard(summary: BookSummary, size: Long?, onClick: () -> Unit, onD
                     (size?.let { " · " + formatBytes(it) } ?: ""),
                 style = MaterialTheme.typography.labelSmall,
             )
+        }
+        if (!book.ferdigKontrollert) {
+            TextButton(onClick = onClick, contentPadding = PaddingValues(0.dp)) {
+                Text("Fortsett å legge til sider", style = MaterialTheme.typography.labelMedium)
+            }
         }
     }
 }

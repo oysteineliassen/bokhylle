@@ -25,6 +25,11 @@ class ReaderViewModel(val bookId: Long, private val app: BokhylleApp) : ViewMode
         .map { list -> list.filter { it.status == Page.STATUS_FERDIG } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val prefs = app.readerPrefs
+
+    /** Hull i sidetallene: «Side 65–79 er ikke lagt inn ennå». */
+    val missing: StateFlow<List<no.oystein.bokhylle.core.MissingPages>> = repo.pages(bookId)
+        .map { no.oystein.bokhylle.work.BookProcessor.analyze(it).missing }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val hasClaude: Boolean get() = app.claude.hasKey
 
     /** Oppsettet uten brukerens tekstrettelser. */

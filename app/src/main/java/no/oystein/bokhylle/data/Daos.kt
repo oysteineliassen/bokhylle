@@ -70,6 +70,9 @@ interface PageDao {
     @Query("SELECT * FROM pages WHERE bookId = :bookId AND status = 0 ORDER BY importBatch, importIndeks")
     suspend fun pending(bookId: Long): List<Page>
 
+    @Query("SELECT bookId, oppdagetSidetall, utledetSidetall FROM pages WHERE status = 1")
+    fun observeNumbers(): Flow<List<PageNumberRow>>
+
     @Query("SELECT DISTINCT bookId FROM pages WHERE status = 0")
     suspend fun booksWithPending(): List<Long>
 

@@ -52,7 +52,25 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             }
         }
         app.processor.rebuild(bookId)
+        sendToClaudeIfAuto(bookId)
         return Result.success()
+    }
+
+    /**
+     * «Send nye opplastinger automatisk»: sidene fra denne opplastingen sendes som egen batch,
+     * så sidene som allerede er lagt inn kan leses mens resten mangler.
+     */
+    private suspend fun sendToClaudeIfAuto(bookId: Long) {
+        val book = db.books().get(bookId) ?: return
+        if (!book.claudeAuto || !app.claude.hasKey) return
+        val waiting = db.claude().openJobs().flatMap { j -> j.sideIder.split(',').mapNotNull { it.toLongOrNull() } }.toSet()
+        val fresh = db.pages().forBook(bookId)
+            .filter { it.status == Page.STATUS_FERDIG && it.blocksJson == null && !it.trengerClaude && it.id !in waiting }
+            .map { it.id }
+        if (fresh.isNotEmpty()) {
+            Log.d(TAG, "claude: sender ${fresh.size} nye sider automatisk")
+            app.claude.submitBook(bookId, fresh)
+        }
     }
 
     private suspend fun processPage(page: Page) {

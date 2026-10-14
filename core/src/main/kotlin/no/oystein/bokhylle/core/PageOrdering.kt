@@ -190,3 +190,23 @@ object PageOrdering {
         return result.reversed()
     }
 }
+
+/** Hvilke sider som er lagt inn, som intervaller: «1–64, 80–112». Romertall (forord) for seg. */
+object PageRanges {
+    fun describe(numbers: Collection<PageNumber>): String {
+        val parts = mutableListOf<String>()
+        for (roman in listOf(true, false)) {
+            val sorted = numbers.filter { it.roman == roman }.map { it.value }.distinct().sorted()
+            var i = 0
+            while (i < sorted.size) {
+                var j = i
+                while (j + 1 < sorted.size && sorted[j + 1] == sorted[j] + 1) j++
+                val a = PageNumber(sorted[i], roman).label
+                val b = PageNumber(sorted[j], roman).label
+                parts += if (i == j) a else "$a–$b"
+                i = j + 1
+            }
+        }
+        return parts.joinToString(", ")
+    }
+}

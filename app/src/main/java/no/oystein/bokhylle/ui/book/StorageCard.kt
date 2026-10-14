@@ -58,7 +58,7 @@ fun StorageCard(book: Book, pages: List<Page>) {
             Text(if (size < 0) "Beregner …" else "Boka bruker ${formatBytes(size)} på telefonen.", style = MaterialTheme.typography.bodyMedium)
             when {
                 book.bilderSlettet -> Text("Sidebildene er slettet; bare teksten og figurene er beholdt.", style = MaterialTheme.typography.bodySmall)
-                book.ferdigKontrollert -> Text("Ferdig kontrollert: sidebildene er skalert ned og originalene slettet.", style = MaterialTheme.typography.bodySmall)
+                book.ferdigKontrollert -> Text("Boka er ferdig: sidebildene er skalert ned og originalene slettet.", style = MaterialTheme.typography.bodySmall)
                 else -> Text(
                     "Sidebildene lagres i full oppløsning mens boka analyseres og kontrolleres.",
                     style = MaterialTheme.typography.bodySmall,
@@ -66,7 +66,11 @@ fun StorageCard(book: Book, pages: List<Page>) {
             }
             if (!book.ferdigKontrollert) {
                 OutlinedButton(onClick = { confirm = "ferdig" }, enabled = !busy && pages.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
-                    Text("Merk som ferdig kontrollert")
+                    Text("Merk boka som ferdig")
+                }
+            } else {
+                OutlinedButton(onClick = { scope.launch { app.repo.reopen(book.id) } }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Sett boka under arbeid igjen")
                 }
             }
             if (!book.bilderSlettet) {
@@ -80,11 +84,11 @@ fun StorageCard(book: Book, pages: List<Page>) {
     when (confirm) {
         "ferdig" -> AlertDialog(
             onDismissRequest = { confirm = null },
-            title = { Text("Ferdig kontrollert?") },
+            title = { Text("Er boka ferdig?") },
             text = {
                 Text(
-                    "Sidebildene skaleres ned til ca. 1600 px (nok til «Vis original»), og bildene fra før beskjæring slettes. " +
-                        "Etterpå kan hjørnene ikke justeres lenger.",
+                    "Boka får status «Ferdig». Sidebildene skaleres ned til ca. 1600 px (nok til «Vis original»), og bildene " +
+                        "fra før beskjæring slettes, så hjørnene kan ikke justeres lenger. Du kan fortsatt legge til sider senere.",
                 )
             },
             confirmButton = { TextButton(onClick = { scope.launch { app.repo.markFinished(book.id) }; confirm = null }) { Text("Ja, spar plass") } },

@@ -28,6 +28,8 @@ sealed class ScreenItem {
     data class Box(val title: String?, val text: AnnotatedString, val continued: Boolean) : ScreenItem()
     data class Figure(val image: String?, val description: String?, val height: Float) : ScreenItem()
     data object Empty : ScreenItem()
+    /** Sider som ikke er lagt inn ennå (vises som egen skjermside der de mangler). */
+    data class Missing(val label: String, val count: Int) : ScreenItem()
 }
 
 data class Screen(val pageIndex: Int, val part: Int, val items: List<ScreenItem>)

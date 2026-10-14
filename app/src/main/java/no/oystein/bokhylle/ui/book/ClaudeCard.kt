@@ -87,6 +87,37 @@ fun ClaudeCard(book: Book, pages: List<Page>, onOpenSettings: () -> Unit) {
                 }
             }
             Text(model.description, style = MaterialTheme.typography.bodySmall)
+            var confirmAuto by remember { mutableStateOf(false) }
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                androidx.compose.material3.Switch(
+                    checked = book.claudeAuto,
+                    onCheckedChange = { on ->
+                        if (on) confirmAuto = true
+                        else scope.launch { app.repo.updateBook(book.copy(claudeAuto = false)) }
+                    },
+                )
+                Text("  Send nye opplastinger automatisk", style = MaterialTheme.typography.bodyMedium)
+            }
+            if (confirmAuto) {
+                AlertDialog(
+                    onDismissRequest = { confirmAuto = false },
+                    title = { Text("Send nye sider automatisk?") },
+                    text = {
+                        Text(
+                            "Hver gang du legger inn sider, sendes de til Claude som egen batch. Sidene du allerede har lagt inn, " +
+                                "kan leses mens resten mangler. Anslått kostnad med ${model.name}: " +
+                                "${formatUsd(model.estimate(1, batch = true))} per side (${formatUsd(model.estimate(100, batch = true))} per 100 sider).",
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            confirmAuto = false
+                            scope.launch { app.repo.updateBook(book.copy(claudeAuto = true)) }
+                        }) { Text("Slå på") }
+                    },
+                    dismissButton = { TextButton(onClick = { confirmAuto = false }) { Text("Avbryt") } },
+                )
+            }
             if (missing.isNotEmpty()) {
                 Button(onClick = { confirm = missing }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (done == 0) "Send boka til Claude (${missing.size} sider)" else "Send resten (${missing.size} sider)")

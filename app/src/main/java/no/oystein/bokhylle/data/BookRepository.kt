@@ -97,6 +97,12 @@ class BookRepository(
         CompactWorker.enqueue(context, bookId, deleteImages = false)
     }
 
+    /** Boka er under arbeid igjen (flere sider skal legges til). */
+    suspend fun reopen(bookId: Long) {
+        val book = db.books().get(bookId) ?: return
+        db.books().update(book.copy(ferdigKontrollert = false))
+    }
+
     /** Sletter sidebildene og originalene, men beholder figurene. */
     suspend fun deleteImages(bookId: Long) {
         val book = db.books().get(bookId) ?: return

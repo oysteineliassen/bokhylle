@@ -75,6 +75,9 @@ import no.oystein.bokhylle.data.Page
 import no.oystein.bokhylle.data.sidetallVisning
 import java.io.File
 
+/** Skjermside-nummer for markeringen av manglende sider (skiller den fra boksidens egne skjermsider). */
+private const val MISSING_PART = 10_000
+
 /**
  * Leseren: én bokside per skjerm (delt over flere skjermsider om nødvendig), bla med trykk eller sveip.
  * Høyre tredjedel = neste, venstre = forrige, midten = meny.
@@ -86,6 +89,7 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
     val book by vm.book.collectAsState()
     val pagesOrNull by vm.pages.collectAsState()
     val settings by vm.prefs.settings.collectAsState()
+    val missing by vm.missing.collectAsState()
     val theme = settings.theme
     val scope = rememberCoroutineScope()
 
@@ -117,10 +121,16 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
         val measurer = rememberTextMeasurer(cacheSize = 0)
         val pagerState = rememberPagerState { screens?.size ?: 0 }
 
-        LaunchedEffect(pages, settings, widthPx, heightPx) {
+        LaunchedEffect(pages, settings, widthPx, heightPx, missing) {
             val paginator = Paginator(measurer, density, styles, widthPx, heightPx) { pageIndex, number -> footnote = pageIndex to number }
             val result = withContext(Dispatchers.Default) {
-                pages.flatMapIndexed { i, p -> paginator.paginate(i, vm.layoutOf(p)) }
+                pages.flatMapIndexed { i, p ->
+                    val own = paginator.paginate(i, vm.layoutOf(p))
+                    // Mangler det sider etter denne, vises det tydelig i stedet for å hoppe over dem i stillhet.
+                    val gaps = missing.filter { it.afterPageId == p.id }
+                        .map { Screen(i, MISSING_PART, listOf(ScreenItem.Missing(it.label, it.count))) }
+                    own + gaps
+                }
             }
             val target = anchorPage ?: b.sistLestSide
             val oldScreen = screens?.getOrNull(pagerState.currentPage)
@@ -128,7 +138,8 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
             val index = result.indexOfFirst { pages[it.pageIndex].id == target }.coerceAtLeast(0)
             // Samme skjermside innenfor boksiden hvis den fortsatt finnes.
             val part = if (oldScreen != null && pages.getOrNull(oldScreen.pageIndex)?.id == target) oldScreen.part else 0
-            pagerState.scrollToPage((index + part).coerceAtMost(result.size - 1).coerceAtLeast(0))
+            val exact = result.indexOfFirst { pages[it.pageIndex].id == target && it.part == part }
+            pagerState.scrollToPage((if (exact >= 0) exact else index).coerceIn(0, (result.size - 1).coerceAtLeast(0)))
         }
         LaunchedEffect(pagerState, screens) {
             snapshotFlow { pagerState.currentPage }.collect { i ->
@@ -325,6 +336,20 @@ private fun ScreenContent(screen: Screen, styles: ReaderStyles, theme: ReaderThe
                 }
             }
             ScreenItem.Empty -> Text("(Tom side)", style = styles.caption, color = theme.muted, fontWeight = FontWeight.Normal)
+            is ScreenItem.Missing -> Column(
+                Modifier.fillMaxWidth().padding(top = 80.dp).clip(RoundedCornerShape(8.dp)).background(theme.box).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "Side ${item.label} er ikke lagt inn ennå",
+                    style = styles.heading, color = theme.text, textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Ta bilder av ${if (item.count == 1) "siden" else "sidene"} og legg dem inn fra bokskjermen. De sorteres inn på riktig plass.",
+                    style = styles.caption, color = theme.muted, textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }

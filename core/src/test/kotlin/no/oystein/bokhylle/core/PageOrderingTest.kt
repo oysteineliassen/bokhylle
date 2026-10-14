@@ -111,3 +111,12 @@ class PageOrderingTest {
         assertEquals(listOf(0, 1, 3, 4, 6), PageOrdering.longestNonDecreasing(v))
     }
 }
+
+class PageRangesTest {
+    @Test
+    fun `intervaller`() {
+        val n = (1..64).map { PageNumber(it) } + (80..112).map { PageNumber(it) } + PageNumber(200) + listOf(PageNumber(1, true), PageNumber(2, true))
+        assertEquals("i–ii, 1–64, 80–112, 200", PageRanges.describe(n))
+        assertEquals("", PageRanges.describe(emptyList()))
+    }
+}
