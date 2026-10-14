@@ -219,7 +219,9 @@ await sleep(1500);
 const after = visible();
 shot('6-leser');
 if (before === after) fail(`trykk til høyre bladde ikke: ${before}`);
-sh(`adb shell input tap ${Math.round(W / 2)} ${Math.round(H / 2)}`);
+// Trykk midt på en tekstlinje: midten av en figur åpner figuren i fullskjerm, ikke menyen.
+const line = nodes(dump()).find((n) => n.text && n.b[1] > H * 0.05 && n.b[3] < H * 0.9 && !/^\d|\//.test(n.text));
+sh(`adb shell input tap ${Math.round(W / 2)} ${line ? line.y : Math.round(H * 0.1)}`);
 await need(/^Vis original$/, 'menyen (Vis original)');
 await need(/^Skrift$/, 'skriftvalg i menyen');
 shot('7-meny');
