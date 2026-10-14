@@ -105,3 +105,18 @@ class SpreadTest {
         assertEquals(1, PageCropDetector.detectPages(img, w, h).size)
     }
 }
+
+class DarkSpineTest {
+    @Test
+    fun `oppslag med helt mørk rygg deles også`() {
+        val w = 460; val h = 330
+        val img = IntArray(w * h) { 40 }
+        for (y in 30 until 300) for (x in 30 until 220) img[y * w + x] = 230
+        for (y in 30 until 300) for (x in 240 until 430) img[y * w + x] = 230
+        for (y in 30 until 300) for (x in 220 until 240) img[y * w + x] = 90 // mørk rygg
+        val pages = PageCropDetector.detectPages(img, w, h)
+        assertEquals(2, pages.size, "$pages")
+        assertTrue(pages[0].tl.x < pages[1].tl.x)
+        assertTrue(pages[0].tr.x < 0.5f && pages[1].tl.x > 0.5f)
+    }
+}

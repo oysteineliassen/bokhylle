@@ -100,11 +100,56 @@ object PageCropDetector {
             }
         }
 
+        // Oppslag med mørk rygg: de to sidene er hver sin lyse flate. Se etter en like stor flate rett ved siden av.
+        neighbourPage(bright, width, height, component, minX, maxX, minY, maxY)?.let { other ->
+            val (otherComp, oMinX, oMaxX, oMinY, oMaxY) = other
+            val here = corners(component, width, height, minX, maxX, minY, maxY)
+            val there = corners(otherComp, width, height, oMinX, oMaxX, oMinY, oMaxY)
+            if (here != null && there != null && here.isConvex() && there.isConvex()) {
+                return if (oMinX < minX) listOf(there, here) else listOf(here, there)
+            }
+        }
+
         // Én side: kutt bort nabosiden ved midtfalsen.
         val gutter = findGutters(lum, component, width, minX, maxX, minY, maxY)
         val quad = corners(component, width, height, gutter.first ?: minX, gutter.second ?: maxX, minY, maxY) ?: return emptyList()
         if (quad.area() < 0.2f || !quad.isConvex()) return emptyList()
         return listOf(quad)
+    }
+
+    private data class Region(val comp: BooleanArray, val minX: Int, val maxX: Int, val minY: Int, val maxY: Int)
+
+    /**
+     * En lys flate på samme høyde rett til venstre eller høyre for siden, adskilt av en smal mørk stripe,
+     * som er omtrent like stor: den andre siden i et oppslag. Smale striper (kanten av nabosiden) teller ikke.
+     */
+    private fun neighbourPage(bright: BooleanArray, w: Int, h: Int, comp: BooleanArray, minX: Int, maxX: Int, minY: Int, maxY: Int): Region? {
+        val pageW = maxX - minX + 1
+        val pageH = maxY - minY + 1
+        val maxGap = max(3, w * 8 / 100)
+        for (dir in listOf(-1, 1)) {
+            for (frac in listOf(2, 3, 4)) { // prøv noen høyder midt på siden
+                val y = minY + pageH * frac / 6
+                var x = if (dir < 0) minX - 1 else maxX + 1
+                var steps = 0
+                while (x in 0 until w && steps <= maxGap && (!bright[y * w + x] || comp[y * w + x])) { x += dir; steps++ }
+                if (x !in 0 until w || steps > maxGap || !bright[y * w + x]) continue
+                val other = floodFill(bright, w, h, y * w + x)
+                var oMinX = w; var oMaxX = -1; var oMinY = h; var oMaxY = -1
+                for (i in other.indices) if (other[i]) {
+                    val ox = i % w; val oy = i / w
+                    if (ox < oMinX) oMinX = ox; if (ox > oMaxX) oMaxX = ox
+                    if (oy < oMinY) oMinY = oy; if (oy > oMaxY) oMaxY = oy
+                }
+                val oW = oMaxX - oMinX + 1
+                val oH = oMaxY - oMinY + 1
+                if (oW >= pageW * 0.6f && oW <= pageW * 1.6f && oH >= pageH * 0.8f && oH <= pageH * 1.25f) {
+                    return Region(other, oMinX, oMaxX, oMinY, oMaxY)
+                }
+                break
+            }
+        }
+        return null
     }
 
     /** Hjørnene er de ytterste punktene i diagonalretningene innenfor kolonnene [left, right]. */

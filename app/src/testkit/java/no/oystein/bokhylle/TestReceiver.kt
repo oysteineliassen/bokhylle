@@ -154,7 +154,8 @@ class TestReceiver : BroadcastReceiver() {
         val header = if (n % 2 == 0) "$n          TESTBOKA" else "KAPITTEL EN          $n"
         c.drawText(header, if (n % 2 == 0) 80f else 560f, 90f, small)
         var y = 170f
-        val body = BODY[(n - 1) % BODY.size]
+        // Siste linje er ulik på hver side, ellers ligner den en løpende bunntekst.
+        val body = BODY[(n - 1) % BODY.size] + ">Her slutter side ${WORDS[n % WORDS.size]} av fortellingen."
         for ((i, line) in body.withIndex()) {
             val indent = if (line.startsWith(">")) 40f else 0f
             c.drawText(line.removePrefix(">"), 80f + indent, y, text)
@@ -195,6 +196,8 @@ class TestReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "Bokhylle"
         const val TITLE = "Testbok OCR"
+
+        private val WORDS = listOf("null", "en", "to", "tre", "fire", "fem", "seks", "sju", "åtte", "ni", "ti", "elleve")
 
         // Linjer som begynner med «>» har innrykk (nytt avsnitt).
         private val BODY = listOf(
