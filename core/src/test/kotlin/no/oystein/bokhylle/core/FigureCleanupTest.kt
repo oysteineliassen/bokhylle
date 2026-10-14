@@ -71,6 +71,19 @@ class FigureCleanupTest {
         val p = px[5 * w + 2]
         assertTrue(((p shr 16) and 0xFF) >= 240 && ((p shr 8) and 0xFF) >= 240 && (p and 0xFF) >= 240, "papiret ble ikke hvitt")
         val k = px[5 * w + 9]
-        assertTrue(((k shr 16) and 0xFF) < 40, "blekket ble ikke mørkere")
+        assertTrue(((k shr 16) and 0xFF) < 60, "blekket ble ikke mørkere")
+    }
+
+    @Test
+    fun `farget boks beskjæres til boksen, vanlig figur ikke`() {
+        val white = (0xFF shl 24) or (235 shl 16) or (233 shl 8) or 230
+        val yellow = (0xFF shl 24) or (220 shl 16) or (175 shl 8) or 90
+        val w = 100; val h = 80
+        // Gul boks med en stripe av siden langs toppen og venstre kant.
+        val boxed = IntArray(w * h) { i -> if (i / w < 6 || i % w < 4) white else yellow }
+        val b = FigureCleanup.backgroundBounds(boxed, w, h, white)
+        assertEquals(4, b[0]); assertEquals(6, b[1]); assertEquals(w, b[2]); assertEquals(h, b[3])
+        val plain = IntArray(w * h) { i -> if (i % 7 == 0) 0xFF000000.toInt() else white }
+        assertEquals(listOf(0, 0, w, h), FigureCleanup.backgroundBounds(plain, w, h, white).toList())
     }
 }

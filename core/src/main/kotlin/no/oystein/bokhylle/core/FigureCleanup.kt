@@ -68,6 +68,48 @@ object FigureCleanup {
     }
 
     /**
+     * Har figuren en farget bakgrunn (faktaboks e.l.), beskjæres kantene der bakgrunnsfargen ikke dekker
+     * mesteparten av raden/kolonnen: da forsvinner biter av siden rundt boksen og tomme hjørner etter rotasjon.
+     * Gir [venstre, topp, høyre, bunn] i piksler (høyre/bunn eksklusive). Figurer på vanlig papir endres ikke.
+     */
+    fun backgroundBounds(px: IntArray, width: Int, height: Int, paper: Int, maxTrim: Float = 0.1f): IntArray {
+        val full = intArrayOf(0, 0, width, height)
+        if (width < 20 || height < 20) return full
+        // Bakgrunnen: vanligste (grovt avrundede) farge i midtpartiet.
+        val counts = HashMap<Int, Int>()
+        for (y in height / 4 until height * 3 / 4 step 2) for (x in width / 4 until width * 3 / 4 step 2) {
+            val p = px[y * width + x]
+            val q = (((p shr 16) and 0xFF) / 16 shl 8) or (((p shr 8) and 0xFF) / 16 shl 4) or ((p and 0xFF) / 16)
+            counts[q] = (counts[q] ?: 0) + 1
+        }
+        val mode = counts.maxByOrNull { it.value }?.key ?: return full
+        val bg = intArrayOf((mode shr 8) * 16 + 8, ((mode shr 4) and 0xF) * 16 + 8, (mode and 0xF) * 16 + 8)
+        fun dist(p: Int, c: IntArray) =
+            abs(((p shr 16) and 0xFF) - c[0]) + abs(((p shr 8) and 0xFF) - c[1]) + abs((p and 0xFF) - c[2])
+        val paperRgb = intArrayOf((paper shr 16) and 0xFF, (paper shr 8) and 0xFF, paper and 0xFF)
+        // Bakgrunn som ligner papiret: vanlig figur, ingen boks å beskjære til.
+        if (dist(0xFF shl 24 or (bg[0] shl 16) or (bg[1] shl 8) or bg[2], paperRgb) < 60) return full
+        // Papir rundt boksen (eller tomme hjørner): lyst og nesten uten farge, eller nær papirfargen.
+        fun isPaper(p: Int): Boolean {
+            val r = (p shr 16) and 0xFF; val g = (p shr 8) and 0xFF; val b = p and 0xFF
+            return dist(p, paperRgb) < 45 || (minOf(r, g, b) > 180 && maxOf(r, g, b) - minOf(r, g, b) < 25)
+        }
+        fun rowPaper(y: Int) = (0 until width step 2).count { isPaper(px[y * width + it]) } * 2f / width
+        fun colPaper(x: Int) = (0 until height step 2).count { isPaper(px[it * width + x]) } * 2f / height
+        // Forsiktig: heller litt side igjen i et hjørne enn å kutte innhold når boksen er fotografert på skrå.
+        val limit = 0.4f
+        var top = 0
+        while (top < height * maxTrim && rowPaper(top) > limit) top++
+        var bottom = height
+        while (bottom > height * (1 - maxTrim) && rowPaper(bottom - 1) > limit) bottom--
+        var left = 0
+        while (left < width * maxTrim && colPaper(left) > limit) left++
+        var right = width
+        while (right > width * (1 - maxTrim) && colPaper(right - 1) > limit) right--
+        return intArrayOf(left, top, right, bottom)
+    }
+
+    /**
      * Fargekorrigering av ARGB-piksler (endres på stedet):
      * papirfargen skaleres til nesten hvitt per kanal (fjerner fargestikk og grått lys),
      * svartpunktet strekkes, og en mild uskarp maske gjør strekene skarpere.
@@ -89,7 +131,7 @@ object FigureCleanup {
         var seen = 0
         val limit = px.size / 100
         while (black < 255 && seen + hist[black] <= limit) { seen += hist[black]; black++ }
-        black = black.coerceAtMost(70)
+        black = black.coerceAtMost(40)
         val scale = 255f / (255f - black)
         fun level(v: Float) = ((v - black) * scale).coerceIn(0f, 255f)
 
@@ -102,7 +144,7 @@ object FigureCleanup {
             g[i] = level(((p shr 8) and 0xFF) * gg)
             b[i] = level((p and 0xFF) * gb)
         }
-        val amount = 0.5f
+        val amount = 0.35f
         for (y in 0 until height) for (x in 0 until width) {
             val i = y * width + x
             val (sr, sg, sb) = if (x in 1 until width - 1 && y in 1 until height - 1) {

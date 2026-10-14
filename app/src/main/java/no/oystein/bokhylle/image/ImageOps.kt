@@ -168,9 +168,14 @@ object ImageOps {
         out.getPixels(px, 0, out.width, 0, 0, out.width, out.height)
         // Tomme hjørner etter rotasjonen (gjennomsiktige) fylles med papirfarge, ikke svart.
         for (i in px.indices) if ((px[i] ushr 24) < 128) px[i] = paper or (0xFF shl 24)
+        // Faktaboks o.l. med farget bakgrunn: skjær bort sidebiter rundt boksen.
+        val (l, t, r, b) = no.oystein.bokhylle.core.FigureCleanup.backgroundBounds(px, out.width, out.height, paper).toList()
         no.oystein.bokhylle.core.FigureCleanup.enhance(px, out.width, out.height, paper)
         out.setPixels(px, 0, out.width, 0, 0, out.width, out.height)
-        return out
+        if (l == 0 && t == 0 && r == out.width && b == out.height) return out
+        val trimmed = Bitmap.createBitmap(out, l, t, r - l, b - t)
+        if (trimmed != out) out.recycle()
+        return trimmed
     }
 
     fun luminance(c: Int): Int = (Color.red(c) * 299 + Color.green(c) * 587 + Color.blue(c) * 114) / 1000
