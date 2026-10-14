@@ -1,5 +1,5 @@
 // Røyktest av Bokhylle på emulator (kjøres i GitHub Actions). Tar skjermbilder underveis (skjerm-*.png).
-// QUICK=1: bare oppstart og bibliotek (brukes for release-bygget, der testmottakeren ikke finnes).
+// Testes på qa-bygget (krympet som release, med testmottakeren). QUICK=1: bare oppstart og bibliotek (release-bygget).
 import { execSync } from 'node:child_process';
 
 const PKG = 'no.oystein.bokhylle';
@@ -149,5 +149,13 @@ shot('4-kontroll');
 assertAlive();
 sh('adb shell input keyevent KEYCODE_BACK');
 console.log('Sortering og kontrollskjerm OK');
+
+// 4b. Tekstopprydding (ML Kit): orddeling slått sammen, topptekst fjernet, faktaboks funnet.
+const rep4 = await report();
+const texts = rep4.pages.map((p) => p.text).join('\n');
+if (!/bokhandel/.test(texts)) fail('orddelingen «bok-/handel» ble ikke slått sammen: ' + texts.slice(0, 1500));
+if (/TESTBOKA|KAPITTEL EN/.test(texts)) fail('løpende topptekst står fortsatt i teksten');
+if (!rep4.pages.some((p) => /"type":"box"/.test(p.layout))) fail('faktaboksen (farget bakgrunn) ble ikke funnet');
+console.log('Tekstopprydding OK');
 
 console.log('Alt OK');

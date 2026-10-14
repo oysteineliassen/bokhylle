@@ -88,6 +88,29 @@ interface PageDao {
     @Delete
     suspend fun delete(page: Page)
 
+    /** Feltene sorteringen eier; skrives uten å røre status, bilder og tekst som behandlingen kan endre samtidig. */
+    @Query(
+        "UPDATE pages SET sorteringsIndeks = :index, flagget = :flagged, flaggGrunner = :reasons, " +
+            "utledetSidetall = :inferred, oppdagetSidetall = :number WHERE id = :id",
+    )
+    suspend fun updateOrder(id: Long, index: Int, flagged: Boolean, reasons: String, inferred: String?, number: String?)
+
+    @Query("UPDATE pages SET layoutJson = :layout, ryddetTekst = :clean, sokeTekst = :search, ocrKilde = :source WHERE id = :id")
+    suspend fun updateLayout(id: Long, layout: String, clean: String, search: String, source: String)
+
+    /** Claudes svar for siden; ny analyse erstatter ML Kit-oppsettet ved neste oppbygging. */
+    @Query("UPDATE pages SET blocksJson = :json, trengerClaude = 0 WHERE id = :id")
+    suspend fun setClaudeResult(id: Long, json: String)
+
+    @Query("UPDATE pages SET trengerClaude = :needs WHERE id IN (:ids)")
+    suspend fun setNeedsClaude(ids: List<Long>, needs: Boolean)
+
+    @Query("UPDATE pages SET redigertTekst = :text WHERE id = :id")
+    suspend fun setEditedText(id: Long, text: String?)
+
+    @Query("UPDATE pages SET manuelleOmrader = :regions WHERE id = :id")
+    suspend fun setRegions(id: Long, regions: String?)
+
     @Query("UPDATE pages SET sorteringsIndeks = :index WHERE id = :id")
     suspend fun setSortIndex(id: Long, index: Int)
 

@@ -57,9 +57,11 @@ object TextCleaner {
             val bottom = lines.maxOf { it.bottom }
             val zone = (bottom - top) * PageNumberDetector.ZONE
             val medianHeight = lines.map { it.height }.median()
-            val byPosition = lines.indices.sortedBy { lines[it].top }
-            val edgeLines = (byPosition.take(2).filter { lines[it].centerY <= top + zone } +
-                byPosition.takeLast(2).filter { lines[it].centerY >= bottom - zone }).distinct()
+            // Bare ytterste linje øverst og nederst (et frittstående sidetall teller ikke).
+            val numberLine = page.pageNumber?.takeIf { it.wholeLine }?.lineIndex
+            val byPosition = lines.indices.filter { it != numberLine }.sortedBy { lines[it].top }
+            val edgeLines = (byPosition.take(1).filter { lines[it].centerY <= top + zone } +
+                byPosition.takeLast(1).filter { lines[it].centerY >= bottom - zone }).distinct()
             for (i in edgeLines) {
                 // Kapitteltitler i stor skrift skal stå, selv om samme tekst er topptekst på de neste sidene.
                 if (lines[i].height > medianHeight * 1.3f) continue
@@ -84,12 +86,15 @@ object TextCleaner {
     internal fun headerKey(text: String) = text.lowercase().filter { it.isLetter() }
 
     /** Bygger avsnitt fra linjene på én side. */
-    fun paragraphs(lines: List<OcrLine>): List<String> {
+    fun paragraphs(lines: List<OcrLine>): List<String> = paragraphBlocks(lines).map { it.text }
+
+    /** Avsnitt og overskrifter fra linjene på én side, med plassering. */
+    fun paragraphBlocks(lines: List<OcrLine>): List<LayoutBlock> {
         if (lines.isEmpty()) return emptyList()
         val hasGeometry = lines.any { it.height > 0f }
         if (!hasGeometry) {
             return lines.groupBy { it.block }.values.map { block ->
-                block.map { it.text }.reduce(::joinLines).normalizeSpaces()
+                LayoutBlock(BlockType.PARAGRAPH, block.map { it.text }.reduce(::joinLines).normalizeSpaces())
             }
         }
         val lineHeight = lines.map { it.height }.median()
@@ -105,13 +110,28 @@ object TextCleaner {
             l.left > left + width * 0.08f && l.right < right - width * 0.08f &&
                 kotlin.math.abs((l.left - left) - (right - l.right)) < width * 0.08f
 
-        val result = mutableListOf<String>()
+        fun isHeading(l: OcrLine): Boolean {
+            val t = l.text.trim()
+            val noPeriod = t.lastOrNull()?.let { it !in ".,;" } == true
+            return (isCentered(l) && t.length < 80 && noPeriod) || (l.height > lineHeight * 1.3f && t.length < 80 && noPeriod)
+        }
+
+        val result = mutableListOf<LayoutBlock>()
         var current: String? = null
+        var currentBox: Box? = null
+        var currentHeading = false
+        fun flush() {
+            val text = current ?: return
+            result += LayoutBlock(if (currentHeading) BlockType.HEADING else BlockType.PARAGRAPH, text.normalizeSpaces(), box = currentBox)
+            current = null
+        }
         for ((i, line) in lines.withIndex()) {
             val text = line.text.trim()
             if (text.isEmpty()) continue
+            val lineBox = Box(line.left, line.top, line.right, line.bottom)
             val prev = lines.getOrNull(i - 1)
-            val newParagraph = current == null || prev == null || run {
+            val heading = isHeading(line)
+            val newParagraph = current == null || prev == null || heading || currentHeading || run {
                 val gap = line.top - prev.bottom
                 val indent = line.left - left
                 val prevText = prev.text.trim()
@@ -121,7 +141,7 @@ object TextCleaner {
                     endsWithWordHyphen(prevText) && !prevShort -> false
                     gap > normalGap + lineHeight * 0.7f -> true // blank linje
                     line.top < prev.top - lineHeight / 2 -> true // ny kolonne/blokk lenger opp
-                    isCentered(line) || isCentered(prev) -> true // overskrift
+                    isCentered(line) || isCentered(prev) -> true
                     indent > lineHeight * 0.6f && indent < width * 0.5f -> true // innrykk
                     text.startsWith("– ") || text.startsWith("— ") -> endsSentence // replikk
                     prevShort && endsSentence -> true // kort siste linje i forrige avsnitt
@@ -129,13 +149,16 @@ object TextCleaner {
                 }
             }
             if (newParagraph) {
-                current?.let { result += it.normalizeSpaces() }
+                flush()
                 current = text
+                currentBox = lineBox
+                currentHeading = heading
             } else {
                 current = joinLines(current!!, text)
+                currentBox = currentBox?.union(lineBox) ?: lineBox
             }
         }
-        current?.let { result += it.normalizeSpaces() }
+        flush()
         return result
     }
 
