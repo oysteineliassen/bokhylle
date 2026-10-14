@@ -46,7 +46,7 @@ object EpubExporter {
             val notes = layout.blocks.filter { it.type == BlockType.FOOTNOTE }
             fun inline(text: String) = esc(text).replace(PageLayout.FOOTNOTE_REF) { m ->
                 val n = m.groupValues[1]
-                if (notes.any { it.number == n }) "<sup><a epub:type=\"noteref\" href=\"#n$pi-$n\">$n</a></sup>" else "<sup>$n</sup>"
+                if (notes.any { it.number == n }) "<sup><a epub:type=\"noteref\" id=\"r$pi-$n\" href=\"#n$pi-$n\">$n</a></sup>" else "<sup>$n</sup>"
             }
             val body = layout.blocks.filter { it.type != BlockType.FOOTNOTE }
             body.forEachIndexed { bi, b ->
@@ -94,14 +94,18 @@ object EpubExporter {
             if (notes.isNotEmpty()) {
                 closeParagraph()
                 notes.forEach { n ->
-                    chapters.last().body.append("<aside epub:type=\"footnote\" id=\"n$pi-${n.number}\"><p>").append(esc(n.number ?: ""))
-                        .append(" ").append(inline(n.text)).append("</p></aside>\n")
+                    // Ekte EPUB-fotnote: vises som popup på Kindle og andre lesere, med lenke tilbake.
+                    chapters.last().body.append("<aside epub:type=\"footnote\" id=\"n$pi-${n.number}\" class=\"fotnote\"><p><a href=\"#r$pi-${n.number}\">")
+                        .append(esc(n.number ?: "")).append("</a> ").append(inline(n.text)).append("</p></aside>\n")
                 }
             }
             onProgress(pi + 1, pages.size)
         }
         closeParagraph()
         val nonEmpty = chapters.filter { it.body.isNotEmpty() }.ifEmpty { listOf(Chapter(book.tittel, StringBuilder("<p></p>"))) }
+        // Omslag: valgt forside, ellers første side (hvis sidebildet finnes).
+        val coverPage = pages.firstOrNull { it.id == book.coverPageId } ?: pages.firstOrNull()
+        val cover = coverPage?.bildeSti?.takeIf { java.io.File(it).exists() }?.let { jpegOf(it) }
 
         val zip = ZipOutputStream(out.buffered())
         // «mimetype» må være første fil og ukomprimert.
@@ -117,6 +121,15 @@ object EpubExporter {
   <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
 </container>""")
         add("OEBPS/stil.css", CSS)
+        if (cover != null) {
+            zip.putNextEntry(ZipEntry("OEBPS/bilder/omslag.jpg")); zip.write(cover); zip.closeEntry()
+            add("OEBPS/omslag.xhtml", """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="nb" xml:lang="nb">
+<head><title>${esc(book.tittel)}</title><link rel="stylesheet" type="text/css" href="stil.css"/></head>
+<body class="omslag"><section epub:type="cover"><img src="bilder/omslag.jpg" alt="${esc(book.tittel)}"/></section></body>
+</html>""")
+        }
         nonEmpty.forEachIndexed { i, c ->
             add("OEBPS/kapittel-${i + 1}.xhtml", """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -134,6 +147,14 @@ ${c.body}</body>
 ${nonEmpty.mapIndexed { i, c -> "<li><a href=\"kapittel-${i + 1}.xhtml\">${esc(c.title)}</a></li>" }.joinToString("\n")}
 </ol></nav></body>
 </html>""")
+        add("OEBPS/toc.ncx", """<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="nb">
+<head><meta name="dtb:uid" content="urn:uuid:${book.uuid}"/></head>
+<docTitle><text>${esc(book.tittel)}</text></docTitle>
+<navMap>
+${nonEmpty.mapIndexed { i, c -> "<navPoint id=\"p${i + 1}\" playOrder=\"${i + 1}\"><navLabel><text>${esc(c.title)}</text></navLabel><content src=\"kapittel-${i + 1}.xhtml\"/></navPoint>" }.joinToString("\n")}
+</navMap>
+</ncx>""")
         val modified = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ROOT).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date())
         add("OEBPS/content.opf", """<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bokid" xml:lang="nb">
@@ -143,14 +164,18 @@ ${nonEmpty.mapIndexed { i, c -> "<li><a href=\"kapittel-${i + 1}.xhtml\">${esc(c
     ${if (book.forfatter.isNotBlank()) "<dc:creator>${esc(book.forfatter)}</dc:creator>" else ""}
     <dc:language>nb</dc:language>
     <meta property="dcterms:modified">$modified</meta>
+    ${if (cover != null) "<meta name=\"cover\" content=\"omslag-bilde\"/>" else ""}
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="stil" href="stil.css" media-type="text/css"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+${if (cover != null) "    <item id=\"omslag-bilde\" href=\"bilder/omslag.jpg\" media-type=\"image/jpeg\" properties=\"cover-image\"/>\n    <item id=\"omslag\" href=\"omslag.xhtml\" media-type=\"application/xhtml+xml\"/>" else ""}
 ${nonEmpty.indices.joinToString("\n") { "    <item id=\"k${it + 1}\" href=\"kapittel-${it + 1}.xhtml\" media-type=\"application/xhtml+xml\"/>" }}
 ${images.indices.joinToString("\n") { "    <item id=\"b${it + 1}\" href=\"${images[it].first}\" media-type=\"image/jpeg\"/>" }}
   </manifest>
-  <spine>
+  <spine toc="ncx">
+${if (cover != null) "    <itemref idref=\"omslag\" linear=\"yes\"/>" else ""}
 ${nonEmpty.indices.joinToString("\n") { "    <itemref idref=\"k${it + 1}\"/>" }}
   </spine>
 </package>""")
@@ -159,23 +184,33 @@ ${nonEmpty.indices.joinToString("\n") { "    <itemref idref=\"k${it + 1}\"/>" }}
         zip.flush()
     }
 
+    /** JPEG på maks [MAX_IMAGE] px og 80 % kvalitet, så fila holder seg liten (Kindle har grenser for størrelse). */
     private fun jpegOf(path: String): ByteArray? {
         val bmp = ImageOps.decode(path) ?: return null
+        val scale = MAX_IMAGE.toFloat() / maxOf(bmp.width, bmp.height)
+        val small = if (scale < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true) else bmp
         val out = ByteArrayOutputStream()
-        bmp.compress(Bitmap.CompressFormat.JPEG, 88, out)
+        small.compress(Bitmap.CompressFormat.JPEG, 80, out)
+        if (small != bmp) small.recycle()
         bmp.recycle()
         return out.toByteArray()
     }
 
+    private const val MAX_IMAGE = 1200
+
     private fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
-    private const val CSS = """body { font-family: serif; line-height: 1.5; }
-h2 { margin-top: 2em; }
-p { margin: 0 0 0.6em 0; }
-aside.boks { background: #e8f0ea; padding: 0.8em 1em; margin: 1em 0; border-radius: 6px; }
-aside.boks h3 { margin-top: 0; }
+    // Enkel CSS som Kindle forstår: marger, kantlinjer og bakgrunnsfarge, ingen avansert layout.
+    private const val CSS = """body { margin: 0 2%; }
+h2 { margin: 1.5em 0 0.8em 0; }
+p { margin: 0 0 0.5em 0; text-indent: 0; }
+aside.boks { margin: 1em 0; padding: 0.6em 0.8em; border: 2px solid #555555; background-color: #e8f0ea; }
+aside.boks h3 { margin: 0 0 0.4em 0; }
 figure { margin: 1em 0; text-align: center; }
-figure img { max-width: 100%; }
-figcaption, p.bildetekst { font-style: italic; font-size: 0.9em; }
+img { max-width: 100%; }
+figcaption, p.bildetekst { font-style: italic; font-size: 0.9em; margin-top: 0.3em; }
+aside.fotnote { font-size: 0.85em; margin: 0.4em 0; }
+body.omslag { margin: 0; text-align: center; }
+body.omslag img { max-height: 100%; }
 """
 }
