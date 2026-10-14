@@ -27,6 +27,25 @@
             </intent-filter>
         </activity>
 
+        <!-- «Del → Bokhylle» fra galleriet eller kameraet, ett eller mange bilder. -->
+        <activity
+            android:name=".ShareActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Bokhylle.Dialog">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
         <!-- Behandlingen av sider kjører som forgrunnstjeneste (WorkManager) så den ikke stoppes. -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

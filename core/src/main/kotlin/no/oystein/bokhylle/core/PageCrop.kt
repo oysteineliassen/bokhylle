@@ -60,12 +60,18 @@ data class Quad(val tl: Point, val tr: Point, val br: Point, val bl: Point) {
  */
 object PageCropDetector {
     /** @param lum lysstyrke 0–255, rad for rad. @return hjørnene, eller null hvis ingen tydelig side ble funnet. */
-    fun detect(lum: IntArray, width: Int, height: Int): Quad? {
-        if (width < 8 || height < 8 || lum.size != width * height) return null
+    fun detect(lum: IntArray, width: Int, height: Int): Quad? = detectPages(lum, width, height).firstOrNull()
+
+    /**
+     * Finner én side, eller to når bildet er et oppslag (bredere enn høyt, med en mørk rygg på midten).
+     * Ved oppslag kommer venstre side først.
+     */
+    fun detectPages(lum: IntArray, width: Int, height: Int): List<Quad> {
+        if (width < 8 || height < 8 || lum.size != width * height) return emptyList()
         val threshold = otsu(lum)
         val bright = BooleanArray(lum.size) { lum[it] > threshold }
 
-        val seed = findSeed(bright, width, height) ?: return null
+        val seed = findSeed(bright, width, height) ?: return emptyList()
         val component = floodFill(bright, width, height, seed)
 
         var minX = width; var maxX = -1; var minY = height; var maxY = -1
@@ -74,14 +80,36 @@ object PageCropDetector {
             if (x < minX) minX = x; if (x > maxX) maxX = x
             if (y < minY) minY = y; if (y > maxY) maxY = y
         }
-        if (maxX < 0) return null
+        if (maxX < 0) return emptyList()
 
-        // Kutt bort nabosiden ved midtfalsen.
+        // Oppslag: papirflaten er tydelig bredere enn høy, og ryggen ligger omtrent midt i.
+        val ratio = (maxX - minX + 1).toFloat() / (maxY - minY + 1)
+        if (ratio > 1.05f) {
+            val profile = columnProfile(lum, component, width, minX, maxX, minY, maxY)
+            val span = profile.size
+            val paper = profile.sorted()[span * 3 / 4]
+            val middle = (span * 30 / 100) until (span * 70 / 100)
+            val spine = middle.minByOrNull { profile[it] }
+            val clear = spine != null && profile[spine] < paper * 0.9f
+            if (spine != null && (clear || ratio > 1.2f)) {
+                val x = minX + spine
+                val left = corners(component, width, height, minX, x - 1, minY, maxY)
+                val right = corners(component, width, height, x + 1, maxX, minY, maxY)
+                val pages = listOfNotNull(left, right).filter { it.area() > 0.08f && it.isConvex() }
+                if (pages.size == 2) return pages
+            }
+        }
+
+        // Én side: kutt bort nabosiden ved midtfalsen.
         val gutter = findGutters(lum, component, width, minX, maxX, minY, maxY)
-        val left = gutter.first ?: minX
-        val right = gutter.second ?: maxX
+        val quad = corners(component, width, height, gutter.first ?: minX, gutter.second ?: maxX, minY, maxY) ?: return emptyList()
+        if (quad.area() < 0.2f || !quad.isConvex()) return emptyList()
+        return listOf(quad)
+    }
 
-        // Hjørnene er de ytterste punktene i diagonalretningene innenfor [left, right].
+    /** Hjørnene er de ytterste punktene i diagonalretningene innenfor kolonnene [left, right]. */
+    private fun corners(component: BooleanArray, width: Int, height: Int, left: Int, right: Int, minY: Int, maxY: Int): Quad? {
+        if (right <= left) return null
         var tl = -1; var tr = -1; var br = -1; var bl = -1
         var tlV = Int.MAX_VALUE; var trV = Int.MIN_VALUE; var brV = Int.MIN_VALUE; var blV = Int.MAX_VALUE
         for (y in minY..maxY) {
@@ -98,9 +126,26 @@ object PageCropDetector {
         }
         if (tl < 0) return null
         fun p(i: Int) = Point((i % width).toFloat() / (width - 1), (i / width).toFloat() / (height - 1))
-        val quad = Quad(p(tl), p(tr), p(br), p(bl))
-        if (quad.area() < 0.2f || !quad.isConvex()) return null
-        return quad
+        return Quad(p(tl), p(tr), p(br), p(bl))
+    }
+
+    /** Snittlysstyrke per kolonne over den midterste delen av papirflaten, litt utjevnet. */
+    private fun columnProfile(lum: IntArray, comp: BooleanArray, w: Int, minX: Int, maxX: Int, minY: Int, maxY: Int): FloatArray {
+        val span = maxX - minX + 1
+        val y0 = minY + (maxY - minY) / 5
+        val y1 = maxY - (maxY - minY) / 5
+        val mean = FloatArray(span)
+        for (i in 0 until span) {
+            val x = minX + i
+            var s = 0L; var n = 0
+            for (y in y0..y1) { val k = y * w + x; if (comp[k]) { s += lum[k]; n++ } }
+            mean[i] = if (n > 0) s.toFloat() / n else 0f
+        }
+        return FloatArray(span) { i ->
+            var s = 0f; var n = 0
+            for (j in max(0, i - 1)..min(span - 1, i + 1)) { s += mean[j]; n++ }
+            s / n
+        }
     }
 
     /** Terskel som skiller lyst papir fra mørk bakgrunn best mulig (Otsus metode). */
@@ -178,20 +223,7 @@ object PageCropDetector {
     private fun findGutters(lum: IntArray, comp: BooleanArray, w: Int, minX: Int, maxX: Int, minY: Int, maxY: Int): Pair<Int?, Int?> {
         val span = maxX - minX + 1
         if (span < 20) return null to null
-        val y0 = minY + (maxY - minY) / 5
-        val y1 = maxY - (maxY - minY) / 5
-        val mean = FloatArray(span)
-        for (i in 0 until span) {
-            val x = minX + i
-            var s = 0L; var n = 0
-            for (y in y0..y1) { val k = y * w + x; if (comp[k]) { s += lum[k]; n++ } }
-            mean[i] = if (n > 0) s.toFloat() / n else 0f
-        }
-        val smooth = FloatArray(span) { i ->
-            var s = 0f; var n = 0
-            for (j in max(0, i - 1)..min(span - 1, i + 1)) { s += mean[j]; n++ }
-            s / n
-        }
+        val smooth = columnProfile(lum, comp, w, minX, maxX, minY, maxY)
         val paper = smooth.sorted()[span * 3 / 4] // typisk lysstyrke på papiret
         val zone = span * 35 / 100
         fun valley(range: IntRange): Int? {

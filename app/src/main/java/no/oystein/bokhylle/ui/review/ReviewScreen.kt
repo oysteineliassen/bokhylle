@@ -56,6 +56,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -144,7 +146,10 @@ fun ReviewScreen(bookId: Long, onBack: () -> Unit, onCrop: (Long) -> Unit) {
                         Text("Manglende sider", style = MaterialTheme.typography.titleSmall)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             missing.forEach { m ->
-                                AssistChip(onClick = { missingDialog = m }, label = { Text("Mangler ${m.label}") })
+                                AssistChip(
+                                    onClick = { missingDialog = m }, label = { Text("Mangler ${m.label}") },
+                                    modifier = Modifier.semantics { contentDescription = "Mangler ${m.label}" },
+                                )
                             }
                         }
                     }
@@ -258,7 +263,8 @@ private fun PageSheet(page: Page, position: Int, onDismiss: () -> Unit, vm: Revi
             SheetAction(Icons.Outlined.Numbers, "Sett sidetall") { editNumber = true }
             if (page.flagget) SheetAction(Icons.Outlined.TaskAlt, "Godkjenn siden (fjern flagg)") { vm.accept(page, true) }
             else if (page.godkjent) SheetAction(Icons.Outlined.Flag, "Angre godkjenning") { vm.accept(page, false) }
-            SheetAction(Icons.Outlined.Crop, "Juster beskjæring") { onCrop() }
+            // Etter «ferdig kontrollert» finnes ikke bildet fra før beskjæring lenger.
+            if (page.originalSti != null) SheetAction(Icons.Outlined.Crop, "Juster beskjæring") { onCrop() }
             SheetAction(Icons.Outlined.Image, "Bruk som omslag") { vm.setCover(page); onDismiss() }
             if (page.manuellPlassering) SheetAction(Icons.Outlined.Restore, "Sorter etter sidetall igjen") { vm.resetPlacement(page) }
             SheetAction(Icons.Outlined.Delete, "Slett siden") { confirmDelete = true }

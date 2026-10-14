@@ -48,7 +48,9 @@ class TestReceiver : BroadcastReceiver() {
         val files = numbers.map { n ->
             File(dir, "side-$n.jpg").also { f -> FileOutputStream(f).use { drawPage(n).compress(Bitmap.CompressFormat.JPEG, 90, it) } }
         }
-        val uris = files.map { Uri.fromFile(it) } + Uri.fromFile(files[2])
+        // Et oppslag med side 9 og 10 i samme bilde.
+        val spread = File(dir, "oppslag-9-10.jpg").also { f -> FileOutputStream(f).use { drawSpread(9).compress(Bitmap.CompressFormat.JPEG, 90, it) } }
+        val uris = files.map { Uri.fromFile(it) } + Uri.fromFile(files[2]) + Uri.fromFile(spread)
         val bookId = app.repo.createBook(TITLE, "Test Testesen")
         val result = app.importer.import(bookId, uris)
         Log.d(TAG, "test: importert ${result.added} nye, ${result.duplicates} duplikater")
@@ -92,8 +94,23 @@ class TestReceiver : BroadcastReceiver() {
         Log.d(TAG, "RAPPORT-SLUTT ${(json.length + 2999) / 3000}")
     }
 
-    /** En bokside med topptekst og sidetall, fotografert litt skjevt på et mørkt bord, med kanten av nabosiden synlig. */
-    private fun drawPage(n: Int): Bitmap {
+    /** Et oppslag (to sider ved siden av hverandre, mørk rygg i midten) fotografert rett ovenfra. */
+    private fun drawSpread(left: Int): Bitmap {
+        val a = drawContent(left)
+        val b = drawContent(left + 1)
+        val photo = Bitmap.createBitmap(2300, 1650, Bitmap.Config.ARGB_8888)
+        val c = Canvas(photo)
+        c.drawColor(Color.rgb(55, 45, 40))
+        c.drawBitmap(a, 140f, 100f, null)
+        c.drawBitmap(b, 1160f, 100f, null)
+        // Skygge i ryggen.
+        c.drawRect(1120f, 100f, 1180f, 100f + a.height, Paint().apply { color = Color.rgb(150, 145, 135) })
+        a.recycle(); b.recycle()
+        return photo
+    }
+
+    /** Selve boksiden: topptekst med sidetall, avsnitt med innrykk, og en faktaboks på side 3. */
+    private fun drawContent(n: Int): Bitmap {
         val pw = 1000; val ph = 1450
         val page = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888)
         val c = Canvas(page)
@@ -118,6 +135,13 @@ class TestReceiver : BroadcastReceiver() {
                 y += 290f
             }
         }
+        return page
+    }
+
+    /** En bokside med topptekst og sidetall, fotografert litt skjevt på et mørkt bord, med kanten av nabosiden synlig. */
+    private fun drawPage(n: Int): Bitmap {
+        val page = drawContent(n)
+        val pw = page.width; val ph = page.height
 
         // «Fotografi»: mørkt bord, siden litt rotert, og en stripe av nabosiden til venstre.
         val photo = Bitmap.createBitmap(1300, 1800, Bitmap.Config.ARGB_8888)

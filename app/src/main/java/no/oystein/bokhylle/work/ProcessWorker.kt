@@ -63,7 +63,7 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 val incoming = File(page.bildeSti)
                 val bitmap = ImageOps.decodeUpright(incoming) ?: error("kan ikke lese bildet")
                 val file = app.files.newPageFile(page.bookId, "original")
-                ImageOps.saveJpeg(bitmap, file)
+                ImageOps.save(bitmap, file)
                 bitmap.recycle()
                 incoming.delete()
                 originalPath = file.path
@@ -71,11 +71,29 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             }
             val original = ImageOps.decode(originalPath) ?: error("kan ikke lese originalen")
 
-            // 2. Finn siden og rett opp perspektivet.
-            val quad = Quad.decode(page.beskjaering) ?: ImageOps.detectPage(original) ?: Quad.FULL
+            // 2. Finn siden og rett opp perspektivet. Er bildet et oppslag, blir høyre side en egen side.
+            var quad = Quad.decode(page.beskjaering)
+            if (quad == null) {
+                val found = ImageOps.detectPages(original)
+                quad = found.firstOrNull() ?: Quad.FULL
+                if (found.size == 2) {
+                    db.pages().insert(
+                        page.copy(
+                            id = 0,
+                            bildeSti = originalPath,
+                            originalSti = originalPath,
+                            beskjaering = found[1].encode(),
+                            importIndeks = page.importIndeks + 1,
+                            kildeHash = page.kildeHash + "#hoyre",
+                            status = Page.STATUS_NY,
+                        ),
+                    )
+                    Log.d(TAG, "Side ${page.id}: oppslag delt i to")
+                }
+            }
             val pageBitmap = if (quad == Quad.FULL) original else ImageOps.warp(original, quad)
             val pageFile = app.files.newPageFile(page.bookId, "side")
-            ImageOps.saveJpeg(pageBitmap, pageFile)
+            ImageOps.save(pageBitmap, pageFile)
 
             // 3. OCR på den beskårne siden.
             val ocr = MlKitOcr.recognize(pageBitmap)

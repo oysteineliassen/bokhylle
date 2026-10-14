@@ -18,8 +18,12 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 object ImageOps {
+    /** Full oppløsning mens siden analyseres og kontrolleres. */
     const val MAX_SIDE = 2000
-    const val JPEG_QUALITY = 85
+    /** Sidebildet etter at boka er kontrollert (for «Vis original»). */
+    const val ARCHIVE_SIDE = 1600
+    const val QUALITY = 80
+    const val FIGURE_QUALITY = 90
 
     /** Leser et bilde, retter opp etter EXIF-orienteringen og skalerer ned til maks [maxSide] på langsiden. */
     fun decodeUpright(file: File, maxSide: Int = MAX_SIDE): Bitmap? {
@@ -53,9 +57,23 @@ object ImageOps {
 
     fun decode(path: String): Bitmap? = BitmapFactory.decodeFile(path)
 
-    fun saveJpeg(bitmap: Bitmap, file: File, quality: Int = JPEG_QUALITY) {
+    /** Lagrer som WebP (tapsbasert). */
+    fun save(bitmap: Bitmap, file: File, quality: Int = QUALITY) {
         file.parentFile?.mkdirs()
-        FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.JPEG, quality, it) }
+        @Suppress("DEPRECATION")
+        val format = if (android.os.Build.VERSION.SDK_INT >= 30) Bitmap.CompressFormat.WEBP_LOSSY else Bitmap.CompressFormat.WEBP
+        FileOutputStream(file).use { bitmap.compress(format, quality, it) }
+    }
+
+    /** Skalerer et lagret bilde ned til maks [maxSide] på langsiden (ingenting skjer om det allerede er mindre). */
+    fun downscaleFile(path: String, maxSide: Int, target: File): Boolean {
+        val bitmap = decode(path) ?: return false
+        val scale = maxSide.toFloat() / max(bitmap.width, bitmap.height)
+        if (scale >= 1f) { bitmap.recycle(); return false }
+        val small = Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).roundToInt(), (bitmap.height * scale).roundToInt(), true)
+        save(small, target)
+        small.recycle(); bitmap.recycle()
+        return true
     }
 
     /** Når bildet ble tatt, fra EXIF (millisekunder), hvis kjent. */
@@ -65,7 +83,10 @@ object ImageOps {
     }.getOrNull()
 
     /** Finner sidens hjørner på en liten gråtonekopi av bildet. */
-    fun detectPage(bitmap: Bitmap): Quad? {
+    fun detectPage(bitmap: Bitmap): Quad? = detectPages(bitmap).firstOrNull()
+
+    /** Én side, eller to (venstre først) når bildet er et oppslag. */
+    fun detectPages(bitmap: Bitmap): List<Quad> {
         val scale = 400f / max(bitmap.width, bitmap.height)
         val w = max(8, (bitmap.width * scale).roundToInt())
         val h = max(8, (bitmap.height * scale).roundToInt())
@@ -74,7 +95,7 @@ object ImageOps {
         small.getPixels(px, 0, w, 0, 0, w, h)
         if (small != bitmap) small.recycle()
         val lum = IntArray(px.size) { luminance(px[it]) }
-        return PageCropDetector.detect(lum, w, h)
+        return PageCropDetector.detectPages(lum, w, h)
     }
 
     /** Retter opp perspektivet og beskjærer til hjørnene. Resultatet blir maks [MAX_SIDE] på langsiden. */

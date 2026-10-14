@@ -67,7 +67,8 @@ class Importer(private val context: Context, private val db: AppDatabase, privat
                                 bildeSti = target.path,
                                 sorteringsIndeks = sortIndex++,
                                 importBatch = batch,
-                                importIndeks = index,
+                                // Plass til høyre side (index * 2 + 1) hvis bildet viser seg å være et oppslag.
+                                importIndeks = index * 2,
                                 fotoTidspunkt = ImageOps.captureTime(target),
                                 kildeHash = hash,
                                 beskjaering = if (preCropped) Quad.FULL.encode() else null,

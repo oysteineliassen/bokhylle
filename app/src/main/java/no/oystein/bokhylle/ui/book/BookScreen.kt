@@ -28,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -133,18 +135,19 @@ fun BookScreen(
             }
 
             if (pages.any { it.status == Page.STATUS_FERDIG }) {
-                Button(onClick = { onRead(bookId) }, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { onRead(bookId) }, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Les" }) {
                     Text(if (b.sistLestSide == null) "Les" else "Fortsett å lese")
                 }
             }
             if (pages.isNotEmpty()) {
                 val flagged = pages.count { it.flagget }
-                OutlinedButton(onClick = { onReview(bookId) }, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = { onReview(bookId) }, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Kontroller rekkefølge" }) {
                     Text(if (flagged > 0) "Kontroller rekkefølge ($flagged flagget)" else "Kontroller rekkefølge")
                 }
             }
 
-            if (pages.isNotEmpty()) ClaudeCard(b, pages, onSettings)
+            if (pages.isNotEmpty() && !b.bilderSlettet) ClaudeCard(b, pages, onSettings)
+            if (pages.isNotEmpty()) StorageCard(b, pages)
 
             Text("Legg til sider", style = MaterialTheme.typography.titleMedium)
             ImportButtons(enabled = copying == null) { uris, preCropped -> vm.import(uris, preCropped) }

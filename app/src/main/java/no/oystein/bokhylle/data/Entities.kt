@@ -25,6 +25,8 @@ data class Book(
     val ferdigKontrollert: Boolean = false,
     /** Sidebildene er slettet (bare figurene er beholdt). */
     val bilderSlettet: Boolean = false,
+    /** Sist noe i boka ble endret (tekst, rekkefølge, sider); brukes ved gjenoppretting for å finne nyeste versjon. */
+    val sistEndret: Long = System.currentTimeMillis(),
 )
 
 @Entity(

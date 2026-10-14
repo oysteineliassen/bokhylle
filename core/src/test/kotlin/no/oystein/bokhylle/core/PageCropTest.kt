@@ -81,3 +81,27 @@ class JsonTest {
         assertEquals(page, OcrPage.decode(page.encode()))
     }
 }
+
+class SpreadTest {
+    @Test
+    fun `oppslag deles i to sider ved ryggen`() {
+        val w = 400; val h = 300
+        val img = IntArray(w * h) { 40 }
+        for (y in 30 until 270) for (x in 30 until 370) img[y * w + x] = 225
+        for (y in 30 until 270) for (x in 196..204) img[y * w + x] = 150 // skygge i ryggen
+        for (y in 60 until 240 step 10) for (x in 50 until 180) if (x % 5 != 0) img[y * w + x] = 70
+        val pages = PageCropDetector.detectPages(img, w, h)
+        assertEquals(2, pages.size)
+        val (left, right) = pages
+        assertTrue(left.tr.x < 0.52f && left.tl.x < 0.1f, "venstre $left")
+        assertTrue(right.tl.x > 0.48f && right.tr.x > 0.9f, "høyre $right")
+    }
+
+    @Test
+    fun `stående enkeltside deles ikke`() {
+        val w = 300; val h = 400
+        val img = IntArray(w * h) { 40 }
+        for (y in 30 until 370) for (x in 40 until 260) img[y * w + x] = 225
+        assertEquals(1, PageCropDetector.detectPages(img, w, h).size)
+    }
+}

@@ -125,10 +125,12 @@ while (Date.now() < end) {
 if (!rep || !rep.pages.length) fail('fikk ingen rapport fra testmottakeren');
 console.log(JSON.stringify(rep, null, 1).slice(0, 6000));
 const pages = rep.pages;
-if (pages.length !== 7) fail(`ventet 7 sider (duplikatet skal hoppes over), fikk ${pages.length}`);
+if (pages.length !== 9) fail(`ventet 9 sider (duplikatet hoppes over, oppslaget blir to), fikk ${pages.length}`);
+const i9 = pages.findIndex((p) => p.number === '9'), i10 = pages.findIndex((p) => p.number === '10');
+if (i9 < 0 || i10 !== i9 + 1) fail(`oppslaget ble ikke delt i side 9 og 10 i riktig rekkefølge: ${pages.map((p) => p.number).join(',')}`);
 if (pages.some((p) => p.status !== 1)) fail('noen sider feilet: ' + pages.map((p) => p.status).join(','));
 const numbers = pages.map((p) => p.number).filter(Boolean);
-if (numbers.length < 6) fail('fant for få sidetall: ' + numbers.join(','));
+if (numbers.length < 8) fail('fant for få sidetall: ' + numbers.join(','));
 if (pages.some((p) => !p.crop || p.crop === '0.0,0.0,1.0,0.0,1.0,1.0,0.0,1.0')) fail('siden ble ikke beskåret');
 if (!pages.some((p) => /hyllen|bladd/.test(p.text))) fail('OCR-teksten mangler forventede ord');
 assertAlive();
@@ -174,7 +176,7 @@ while (Date.now() < claudeEnd) {
   claudeRep = await report();
   const done = (claudeRep?.pages ?? []).filter((p) => p.source === 'claude').length;
   console.log(`  Claude: ${done} av ${claudeRep?.pages?.length} sider, åpne batcher ${claudeRep?.openJobs}`);
-  if (done === 7) break;
+  if (done === pages.length) break;
   if (!polled && claudeRep?.openJobs > 0) { claudeCmd('poll'); polled = true; }
 }
 if (!claudeRep || claudeRep.pages.some((p) => p.source !== 'claude')) fail('sidene ble ikke analysert av Claude: ' + JSON.stringify(claudeRep).slice(0, 2000));
@@ -183,7 +185,7 @@ if (!/"type":"figure"/.test(lay) || !/"image":"\//.test(lay)) fail('figuren ble 
 if (!/Visste du\?/.test(lay)) fail('faktaboksen mangler: ' + lay);
 if (!(claudeRep.usage.usd > 0)) fail('forbruket ble ikke logget: ' + JSON.stringify(claudeRep.usage));
 const numbers2 = claudeRep.pages.map((p) => p.number).filter(Boolean);
-if (numbers2.length < 6) fail('sidetallene forsvant etter Claude: ' + numbers2.join(','));
+if (numbers2.length < 8) fail('sidetallene forsvant etter Claude: ' + numbers2.join(','));
 const usdBatch = claudeRep.usage.usd;
 claudeCmd('single');
 let single = false;
@@ -200,10 +202,10 @@ console.log('Claude OK');
 sh(`adb shell am force-stop ${PKG}`);
 sh(`adb shell am start -W -n ${PKG}/.MainActivity`);
 tap(await need(/^Testbok OCR$/, 'testboka', 20000));
-tap(await need(/^(Les|Fortsett å lese)$/, 'Les-knappen'));
+tap(await need(/^Les$/, 'Les-knappen'));
 await need(/Tekst fra Claude for side/, 'teksten i leseren', 20000);
 const [W, H] = sh('adb shell wm size').match(/(\d+)x(\d+)/).slice(1).map(Number);
-const footer = () => nodes(dump()).map((n) => n.text).find((t) => /\d+ \/ 7$/.test(t)) ?? '';
+const footer = () => nodes(dump()).map((n) => n.text).find((t) => /\d+ \/ 9$/.test(t)) ?? '';
 const before = footer();
 sh(`adb shell input tap ${Math.round(W * 0.9)} ${Math.round(H / 2)}`);
 await sleep(1500);

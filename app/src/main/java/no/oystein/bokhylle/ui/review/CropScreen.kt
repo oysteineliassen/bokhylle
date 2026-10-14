@@ -149,7 +149,11 @@ fun CropScreen(pageId: Long, onBack: () -> Unit) {
                         onClick = {
                             scope.launch {
                                 val detected = withContext(Dispatchers.IO) {
-                                    ImageOps.decode(p.originalSti ?: p.bildeSti)?.let { bmp -> ImageOps.detectPage(bmp).also { bmp.recycle() } }
+                                    ImageOps.decode(p.originalSti ?: p.bildeSti)?.let { bmp -> ImageOps.detectPages(bmp).also { bmp.recycle() } }
+                                }?.minByOrNull { q ->
+                                    // Ved oppslag: den siden som ligger nærmest dagens utsnitt.
+                                    val c = quad.points; val d = q.points
+                                    kotlin.math.abs(c.sumOf { it.x.toDouble() } - d.sumOf { it.x.toDouble() })
                                 }
                                 if (detected != null) quad = detected
                             }

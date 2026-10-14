@@ -80,7 +80,7 @@ import java.io.File
  * Høyre tredjedel = neste, venstre = forrige, midten = meny.
  */
 @Composable
-fun ReaderScreen(bookId: Long, onBack: () -> Unit) {
+fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
     val context = LocalContext.current
     val vm: ReaderViewModel = viewModel(key = "les-$bookId") { ReaderViewModel(bookId, context.app) }
     val book by vm.book.collectAsState()
@@ -97,7 +97,7 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit) {
     var goTo by remember { mutableStateOf(false) }
     var screens by remember { mutableStateOf<List<Screen>?>(null) }
     // Boksiden vi står på; brukes til å finne igjen plassen når teksten pagineres på nytt.
-    var anchorPage by remember { mutableStateOf<Long?>(null) }
+    var anchorPage by remember { mutableStateOf(startPageId) }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(theme.background)) {
         val pages = pagesOrNull

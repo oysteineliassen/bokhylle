@@ -4,4 +4,12 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowBackground">@color/ic_launcher_background</item>
     </style>
+
+    <!-- Delingsdialogen: gjennomsiktig, bare dialogen vises over appen man delte fra. -->
+    <style name="Theme.Bokhylle.Dialog" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+    </style>
 </resources>

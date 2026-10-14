@@ -97,6 +97,7 @@ class BookProcessor(private val app: BokhylleApp) {
                 changed++
             }
         }
+        if (changed > 0) db.books().touch(bookId)
         Log.d(TAG, "bok $bookId: ${pages.size} sider, $changed endringer, ${result.missing.size} hull")
     }
 
@@ -111,13 +112,14 @@ class BookProcessor(private val app: BokhylleApp) {
         var bitmap: Bitmap? = null
         try {
             val blocks = layout.blocks.mapIndexed { i, b ->
-                if (b.type != BlockType.FIGURE || b.box == null) return@mapIndexed b
-                val key = b.box.toList().joinToString("_") { "%.3f".format(java.util.Locale.ROOT, it) }.hashCode().toUInt().toString(16)
-                val file = File(app.files.bookDir(page.bookId), "figur-${page.id}-$i-$key.jpg")
+                val box = b.box
+                if (b.type != BlockType.FIGURE || box == null) return@mapIndexed b
+                val key = box.toList().joinToString("_") { "%.3f".format(java.util.Locale.ROOT, it) }.hashCode().toUInt().toString(16)
+                val file = File(app.files.bookDir(page.bookId), "figur-${page.id}-$i-$key.webp")
                 if (!file.exists()) {
                     if (bitmap == null) bitmap = ImageOps.decode(page.bildeSti)
-                    val crop = bitmap?.let { ImageOps.crop(it, b.box) } ?: return@mapIndexed b
-                    ImageOps.saveJpeg(crop, file, 90)
+                    val crop = bitmap?.let { ImageOps.crop(it, box) } ?: return@mapIndexed b
+                    ImageOps.save(crop, file, ImageOps.FIGURE_QUALITY)
                     crop.recycle()
                 }
                 keep += file.path

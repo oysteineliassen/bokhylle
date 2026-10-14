@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import no.oystein.bokhylle.app
@@ -63,12 +65,12 @@ fun NewBookScreen(onBack: () -> Unit, onCreated: (Long) -> Unit) {
             OutlinedTextField(
                 value = title, onValueChange = { title = it }, label = { Text("Tittel") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Tittel" },
             )
             OutlinedTextField(
                 value = author, onValueChange = { author = it }, label = { Text("Forfatter") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Forfatter" },
             )
             Text(
                 "Ta bilder av alle sidene med kameraet først, og velg dem så her – gjerne alle på én gang. " +
@@ -76,7 +78,10 @@ fun NewBookScreen(onBack: () -> Unit, onCreated: (Long) -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
             )
             ImportButtons(enabled = title.isNotBlank()) { uris, preCropped -> create(uris, preCropped) }
-            TextButton(onClick = { create() }, enabled = title.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+            TextButton(
+                onClick = { create() }, enabled = title.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Opprett bok uten sider" },
+            ) {
                 Text("Opprett bok uten sider")
             }
         }

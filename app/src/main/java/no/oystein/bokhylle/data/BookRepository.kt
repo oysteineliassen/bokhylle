@@ -7,6 +7,7 @@ import no.oystein.bokhylle.core.OcrPage
 import no.oystein.bokhylle.core.PageNumber
 import no.oystein.bokhylle.core.PageNumberDetector
 import no.oystein.bokhylle.core.Quad
+import no.oystein.bokhylle.work.CompactWorker
 import no.oystein.bokhylle.work.ProcessWorker
 
 class BookRepository(
@@ -43,7 +44,8 @@ class BookRepository(
     suspend fun deletePage(page: Page) {
         db.pages().delete(page)
         files.delete(page.bildeSti)
-        files.delete(page.originalSti)
+        // Et oppslag deler originalbildet med den andre siden.
+        page.originalSti?.let { if (db.pages().countUsing(it) == 0) files.delete(it) }
         PageImages.figurePaths(page).forEach { files.delete(it) }
         db.books().get(page.bookId)?.let { if (it.coverPageId == page.id) db.books().setCover(page.bookId, null) }
         processor.rebuild(page.bookId)
@@ -86,6 +88,20 @@ class BookRepository(
         db.pages().update(moved.copy(manuellPlassering = true, plassertEtter = newOrder.getOrNull(index - 1)))
         db.pages().setOrder(newOrder)
         processor.rebuild(bookId)
+    }
+
+    /** Teksten er kontrollert: sidebildene skaleres ned og originalene slettes (i bakgrunnen). */
+    suspend fun markFinished(bookId: Long) {
+        val book = db.books().get(bookId) ?: return
+        db.books().update(book.copy(ferdigKontrollert = true))
+        CompactWorker.enqueue(context, bookId, deleteImages = false)
+    }
+
+    /** Sletter sidebildene og originalene, men beholder figurene. */
+    suspend fun deleteImages(bookId: Long) {
+        val book = db.books().get(bookId) ?: return
+        db.books().update(book.copy(ferdigKontrollert = true, bilderSlettet = true))
+        CompactWorker.enqueue(context, bookId, deleteImages = true)
     }
 
     /** Nye hjørner: siden beskjæres og leses på nytt i bakgrunnen. */

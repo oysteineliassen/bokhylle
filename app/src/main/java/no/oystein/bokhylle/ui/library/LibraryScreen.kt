@@ -51,6 +51,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -64,12 +66,24 @@ import no.oystein.bokhylle.app
 import no.oystein.bokhylle.data.BookRepository
 import no.oystein.bokhylle.data.BookSummary
 import no.oystein.bokhylle.data.fremdrift
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import no.oystein.bokhylle.ui.book.formatBytes
 import no.oystein.bokhylle.ui.theme.Accent
 import java.io.File
 
 class LibraryViewModel(private val repo: BookRepository) : ViewModel() {
     val books: StateFlow<List<BookSummary>?> =
         repo.books.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** Lagringsbruk per bok (byte), beregnet på nytt når biblioteket endres. */
+    val sizes: StateFlow<Map<Long, Long>> = repo.books
+        .map { list -> list.associate { it.book.id to repo.files.bookSize(it.book.id) } }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    fun deleteImages(bookId: Long) = viewModelScope.launch { repo.deleteImages(bookId) }
 
     fun delete(bookId: Long) = viewModelScope.launch { repo.deleteBook(bookId) }
 }
@@ -85,7 +99,9 @@ fun LibraryScreen(
     val context = LocalContext.current
     val vm: LibraryViewModel = viewModel { LibraryViewModel(context.app.repo) }
     val books by vm.books.collectAsState()
+    val sizes by vm.sizes.collectAsState()
     var toDelete by remember { mutableStateOf<BookSummary?>(null) }
+    var toStrip by remember { mutableStateOf<BookSummary?>(null) }
 
     Scaffold(
         topBar = {
@@ -100,6 +116,7 @@ fun LibraryScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onNewBook,
+                modifier = Modifier.semantics { contentDescription = "Ny bok" },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 text = { Text("Ny bok") },
             )
@@ -123,10 +140,25 @@ fun LibraryScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 items(list, key = { it.book.id }) { summary ->
-                    BookCard(summary, onClick = { onOpenBook(summary.book.id) }, onDelete = { toDelete = summary })
+                    BookCard(
+                        summary, sizes[summary.book.id],
+                        onClick = { onOpenBook(summary.book.id) },
+                        onDelete = { toDelete = summary },
+                        onDeleteImages = { toStrip = summary },
+                    )
                 }
             }
         }
+    }
+
+    toStrip?.let { summary ->
+        AlertDialog(
+            onDismissRequest = { toStrip = null },
+            title = { Text("Slette originalbildene i «${summary.book.tittel}»?") },
+            text = { Text("Teksten, rettelsene og figurene beholdes. «Vis original», ny beskjæring og ny analyse blir ikke mulig.") },
+            confirmButton = { TextButton(onClick = { vm.deleteImages(summary.book.id); toStrip = null }) { Text("Slett bildene") } },
+            dismissButton = { TextButton(onClick = { toStrip = null }) { Text("Avbryt") } },
+        )
     }
 
     toDelete?.let { summary ->
@@ -144,9 +176,13 @@ fun LibraryScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BookCard(summary: BookSummary, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun BookCard(summary: BookSummary, size: Long?, onClick: () -> Unit, onDelete: () -> Unit, onDeleteImages: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
-    Column(Modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
+    Column(
+        Modifier
+            .combinedClickable(onClick = onClick, onLongClick = { menu = true })
+            .semantics { contentDescription = summary.book.tittel },
+    ) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -154,7 +190,7 @@ private fun BookCard(summary: BookSummary, onClick: () -> Unit, onDelete: () -> 
                 .clip(RoundedCornerShape(6.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
-            val cover = summary.omslag
+            val cover = summary.omslag?.takeIf { File(it).exists() }
             if (cover != null) {
                 AsyncImage(
                     model = File(cover),
@@ -181,6 +217,9 @@ private fun BookCard(summary: BookSummary, onClick: () -> Unit, onDelete: () -> 
                 }
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                if (!summary.book.bilderSlettet) {
+                    DropdownMenuItem(text = { Text("Slett originalbilder") }, onClick = { menu = false; onDeleteImages() })
+                }
                 DropdownMenuItem(text = { Text("Slett bok") }, onClick = { menu = false; onDelete() })
             }
         }
@@ -197,7 +236,8 @@ private fun BookCard(summary: BookSummary, onClick: () -> Unit, onDelete: () -> 
         } else if (summary.antallSider > 0) {
             LinearProgressIndicator(progress = { summary.fremdrift }, modifier = Modifier.fillMaxWidth())
             Text(
-                if (summary.lestTil == 0) "${summary.antallSider} sider" else "${(summary.fremdrift * 100).toInt()} % lest",
+                (if (summary.lestTil == 0) "${summary.antallSider} sider" else "${(summary.fremdrift * 100).toInt()} % lest") +
+                    (size?.let { " · " + formatBytes(it) } ?: ""),
                 style = MaterialTheme.typography.labelSmall,
             )
         }

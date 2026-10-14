@@ -15,13 +15,18 @@ class FileStore(context: Context) {
     fun bookDir(bookId: Long) = File(booksDir, bookId.toString()).apply { mkdirs() }
     fun incomingDir(bookId: Long) = File(incomingDir, bookId.toString()).apply { mkdirs() }
 
-    fun newPageFile(bookId: Long, prefix: String) = File(bookDir(bookId), "$prefix-${UUID.randomUUID()}.jpg")
+    fun newPageFile(bookId: Long, prefix: String) = File(bookDir(bookId), "$prefix-${UUID.randomUUID()}.webp")
     fun newIncomingFile(bookId: Long) = File(incomingDir(bookId), "${UUID.randomUUID()}.bin")
 
     fun deleteBook(bookId: Long) {
         File(booksDir, bookId.toString()).deleteRecursively()
         File(incomingDir, bookId.toString()).deleteRecursively()
     }
+
+    /** Plassen boka bruker (bilder, figurer og innkommende originaler), i byte. */
+    fun bookSize(bookId: Long): Long =
+        listOf(File(booksDir, bookId.toString()), File(incomingDir, bookId.toString()))
+            .sumOf { dir -> dir.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
 
     fun delete(path: String?) {
         if (path != null) File(path).delete()

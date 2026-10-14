@@ -49,6 +49,9 @@ interface BookDao {
     @Query("UPDATE books SET sistLestSide = :pageId WHERE id = :bookId")
     suspend fun setLastRead(bookId: Long, pageId: Long)
 
+    @Query("UPDATE books SET sistEndret = :time WHERE id = :bookId")
+    suspend fun touch(bookId: Long, time: Long = System.currentTimeMillis())
+
     @Query("UPDATE books SET coverPageId = :pageId WHERE id = :bookId")
     suspend fun setCover(bookId: Long, pageId: Long?)
 }
@@ -69,6 +72,12 @@ interface PageDao {
 
     @Query("SELECT DISTINCT bookId FROM pages WHERE status = 0")
     suspend fun booksWithPending(): List<Long>
+
+    @Query("SELECT COUNT(*) FROM pages WHERE originalSti = :path OR bildeSti = :path")
+    suspend fun countUsing(path: String): Int
+
+    @Query("UPDATE pages SET bildeSti = :image, originalSti = :original WHERE id = :id")
+    suspend fun setImages(id: Long, image: String, original: String?)
 
     @Query("SELECT kildeHash FROM pages WHERE bookId = :bookId")
     suspend fun hashes(bookId: Long): List<String>

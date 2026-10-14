@@ -44,6 +44,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -107,20 +109,31 @@ fun OriginalDialog(page: Page, onDismiss: () -> Unit, onMark: (ManualRegion) -> 
     var marking by remember { mutableStateOf(false) }
     var rect by remember { mutableStateOf<NormBox?>(null) }
     val regions = ManualRegion.decode(page.manuelleOmrader)
+    val exists = remember(page.bildeSti) { File(page.bildeSti).exists() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = Color.Black) {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Lukk", tint = Color.White) }
                     Text(if (marking) "Dra et rektangel rundt området" else "Original", color = Color.White, modifier = Modifier.weight(1f))
-                    if (!marking) {
-                        OutlinedButton(onClick = { marking = true; rect = null }) { Text("Marker område", color = Color.White) }
+                    if (!exists) {
+                        Unit
+                    } else if (!marking) {
+                        OutlinedButton(
+                            onClick = { marking = true; rect = null },
+                            modifier = Modifier.semantics { contentDescription = "Marker område" },
+                        ) { Text("Marker område", color = Color.White) }
                     } else {
                         OutlinedButton(onClick = { marking = false; rect = null }) { Text("Avbryt", color = Color.White) }
                     }
                 }
                 Box(Modifier.fillMaxWidth().weight(1f)) {
-                    if (!marking) {
+                    if (!exists) {
+                        Text(
+                            "Sidebildet er slettet for å spare plass.", color = Color.White,
+                            modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                        )
+                    } else if (!marking) {
                         ZoomableImage(page.bildeSti, "Sidebildet", Modifier.fillMaxSize())
                     } else {
                         MarkingCanvas(page.bildeSti, regions, rect) { rect = it }
