@@ -59,6 +59,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -68,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import no.oystein.bokhylle.app
@@ -125,6 +128,8 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
             val paginator = Paginator(measurer, density, styles, widthPx, heightPx) { pageIndex, number -> footnote = pageIndex to number }
             val result = withContext(Dispatchers.Default) {
                 pages.flatMapIndexed { i, p ->
+                    // Ny innstilling mens vi holder på: stopp, den nye pagineringen tar over.
+                    ensureActive()
                     val own = paginator.paginate(i, vm.layoutOf(p))
                     // Mangler det sider etter denne, vises det tydelig i stedet for å hoppe over dem i stillhet.
                     val gaps = missing.filter { it.afterPageId == p.id }
@@ -158,9 +163,15 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
         val current = list.getOrNull(pagerState.currentPage)
         val currentPage = current?.let { pages.getOrNull(it.pageIndex) }
 
-        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize(), key = { "${list[it].pageIndex}-${list[it].part}" }) { i ->
-            val screen = list[i]
-            val page = pages[screen.pageIndex]
+        // Antall skjermsider leses fra tilstanden og kan være oppdatert før denne listen (f.eks. når ny skrifttype
+        // gir flere skjermsider): sidebladeren kan da spørre etter en side utenfor listen. Da tegnes ingenting.
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            key = { i -> list.getOrNull(i)?.let { "${it.pageIndex}-${it.part}" } ?: "utenfor-$i" },
+        ) { i ->
+            val screen = list.getOrNull(i) ?: return@HorizontalPager
+            val page = pages.getOrNull(screen.pageIndex) ?: return@HorizontalPager
             Box(
                 Modifier.fillMaxSize().pointerInput(menu) {
                     detectTapGestures { o ->
@@ -234,7 +245,7 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
                         Text("Skrift", modifier = Modifier.width(72.dp))
                         OutlinedButton(onClick = { vm.prefs.update { it.copy(fontSize = (it.fontSize - 1).coerceAtLeast(12f)) } }) { Text("A−") }
                         Text("${settings.fontSize.toInt()}")
-                        OutlinedButton(onClick = { vm.prefs.update { it.copy(fontSize = (it.fontSize + 1).coerceAtMost(36f)) } }) { Text("A+") }
+                        OutlinedButton(onClick = { vm.prefs.update { it.copy(fontSize = (it.fontSize + 1).coerceAtMost(36f)) } }, modifier = Modifier.semantics { contentDescription = "Større skrift" }) { Text("A+") }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Linjer", modifier = Modifier.width(72.dp))
@@ -244,8 +255,8 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Skrifttype", modifier = Modifier.width(72.dp))
-                        FilterChip(selected = settings.serif, onClick = { vm.prefs.update { it.copy(serif = true) } }, label = { Text("Serif") })
-                        FilterChip(selected = !settings.serif, onClick = { vm.prefs.update { it.copy(serif = false) } }, label = { Text("Sans") })
+                        FilterChip(selected = settings.serif, onClick = { vm.prefs.update { it.copy(serif = true) } }, label = { Text("Serif") }, modifier = Modifier.semantics { contentDescription = "Serif" })
+                        FilterChip(selected = !settings.serif, onClick = { vm.prefs.update { it.copy(serif = false) } }, label = { Text("Sans") }, modifier = Modifier.semantics { contentDescription = "Sans" })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Tema", modifier = Modifier.width(72.dp))

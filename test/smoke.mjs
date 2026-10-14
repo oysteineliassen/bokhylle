@@ -245,6 +245,15 @@ sh(`adb shell input tap ${Math.round(W / 2)} ${line ? line.y : Math.round(H * 0.
 await need(/^Vis original$/, 'menyen (Vis original)');
 await need(/^Skrift$/, 'skriftvalg i menyen');
 shot('7-meny');
+// Bytt skrifttype og skriftstørrelse: gir ny paginering med et annet antall skjermsider (krasjet før).
+tap(await need(/^Sans$/, 'skrifttypen Sans'));
+await sleep(2500);
+assertAlive();
+for (let k = 0; k < 3; k++) { tap(await need(/^Større skrift$/, 'A+')); await sleep(1200); }
+assertAlive();
+tap(await need(/^Serif$/, 'skrifttypen Serif'));
+await sleep(2500);
+assertAlive();
 tap(await need(/^Vis original$/, 'Vis original'));
 await need(/^Marker område$/, 'originalbildet');
 shot('8-original');
