@@ -38,7 +38,35 @@ class BookRepository(
         files.deleteBook(bookId)
     }
 
-    suspend fun setCover(bookId: Long, pageId: Long?) = db.books().setCover(bookId, pageId)
+    suspend fun setCover(bookId: Long, pageId: Long?) {
+        // En valgt side skal vises, ikke et tidligere omslagsbilde.
+        removeCoverImage(bookId)
+        db.books().setCover(bookId, pageId)
+    }
+
+    /** Lagrer et eget bilde av omslaget (fra kamera, dokumentskanner eller galleriet). */
+    suspend fun setCoverImage(bookId: Long, uri: android.net.Uri): Unit = withContext(Dispatchers.IO) {
+        val temp = files.newIncomingFile(bookId)
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input -> temp.outputStream().use { input.copyTo(it) } } ?: return@withContext
+            val bitmap = ImageOps.decodeUpright(temp, COVER_SIDE) ?: return@withContext
+            val file = files.newPageFile(bookId, "omslag")
+            ImageOps.save(bitmap, file, quality = ImageOps.FIGURE_QUALITY)
+            bitmap.recycle()
+            val old = db.books().get(bookId)?.omslagBilde
+            db.books().setCoverImage(bookId, file.path)
+            if (old != null && old != file.path) files.delete(old)
+        } finally {
+            temp.delete()
+        }
+    }
+
+    /** Fjerner det egne omslagsbildet; da brukes valgt side eller første side igjen. */
+    suspend fun removeCoverImage(bookId: Long) {
+        val old = db.books().get(bookId)?.omslagBilde ?: return
+        db.books().setCoverImage(bookId, null)
+        files.delete(old)
+    }
 
     private val processor get() = (context.applicationContext as no.oystein.bokhylle.BokhylleApp).processor
 
@@ -177,5 +205,8 @@ class BookRepository(
 
     companion object {
         fun bookTag(bookId: Long) = "bok-$bookId"
+
+        /** Omslagsbildet lagres med maks denne langsiden. */
+        private const val COVER_SIDE = 1400
     }
 }

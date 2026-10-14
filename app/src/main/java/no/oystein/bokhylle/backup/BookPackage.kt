@@ -102,6 +102,8 @@ object BookPackage {
             "ferdigKontrollert" to book.ferdigKontrollert,
             "bilderSlettet" to (book.bilderSlettet || !withImages),
             "omslag" to book.coverPageId?.let { index[it] },
+            // Omslagsbildet er lite og tas med også når sidebildene ikke gjør det.
+            "omslagBilde" to addImage(book.omslagBilde),
             "sistLest" to book.sistLestSide?.let { index[it] },
             "sider" to pages.size,
             "rettedeSider" to pages.count { it.redigertTekst != null },
@@ -267,6 +269,7 @@ object BookPackage {
             if (after != null) app.db.pages().get(ids[i])?.let { app.db.pages().update(it.copy(plassertEtter = after)) }
         }
         b.num("omslag")?.toInt()?.let { ids.getOrNull(it) }?.let { app.db.books().setCover(bookId, it) }
+        image(b.str("omslagBilde"))?.let { app.db.books().setCoverImage(bookId, it) }
         b.num("sistLest")?.toInt()?.let { ids.getOrNull(it) }?.let { app.db.books().setLastRead(bookId, it) }
         // setLastRead/setCover endrer ikke sistEndret; behold tidspunktet fra filen.
     }

@@ -105,7 +105,7 @@ object EpubExporter {
         val nonEmpty = chapters.filter { it.body.isNotEmpty() }.ifEmpty { listOf(Chapter(book.tittel, StringBuilder("<p></p>"))) }
         // Omslag: valgt forside, ellers første side (hvis sidebildet finnes).
         val coverPage = pages.firstOrNull { it.id == book.coverPageId } ?: pages.firstOrNull()
-        val cover = coverPage?.bildeSti?.takeIf { java.io.File(it).exists() }?.let { jpegOf(it) }
+        val cover = (book.omslagBilde ?: coverPage?.bildeSti)?.takeIf { java.io.File(it).exists() }?.let { jpegOf(it) }
 
         val zip = ZipOutputStream(out.buffered())
         // «mimetype» må være første fil og ukomprimert.

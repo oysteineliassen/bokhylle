@@ -21,6 +21,8 @@ Last ned `Bokhylle-1.0.N.apk` på telefonen og åpne den. Nye versjoner installe
 4. **Kontroller rekkefølge** viser alle sidene. Flaggede sider (mangler sidetall, duplikat, hopp/tilbakegang) er uthevet,
    og manglende sider vises («Mangler 48»), med knapp for å legge dem inn. Hold inne og dra for å flytte en side.
    Trykk på en side for å sette sidetall, godkjenne, slette, bruke som omslag, justere hjørnene eller rotere bildet.
+   **Omslag** på bokskjermen: ta bilde av forsiden (dokumentskanneren retter den opp) eller velg et bilde fra galleriet.
+   Omslagsbildet vises i biblioteket og i EPUB-en, er med i eksport og sikkerhetskopi, og beholdes når sidebildene slettes.
    **Rett opp liggende bilder** sjekker retningen på alle bildene i boka på nytt og snur og deler dem som ligger feil,
    og finner sidetallene på nytt.
    Sidetallene i en innholdsfortegnelse (oppføringer som ender på et tall, eller en kolonne med tall) brukes ikke som
@@ -74,7 +76,7 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
 - **Eksporter** en bok som `.bokhylle`-fil (zip med `book.json`, `pages.json` og bildene), med eller uten
   originalbilder, eller som **EPUB** for andre lesere. Lagre med «Lagre som …» eller del via Android-delingsmenyen.
 - **Send til Kindle** lager en Kindle-vennlig EPUB 3 (enkel CSS, faktabokser med kantlinje og farge, ekte
-  popup-fotnoter, figurer på maks 1200 px / JPEG 80 %, omslag fra valgt forside, innholdsfortegnelse fra
+  popup-fotnoter, figurer på maks 1200 px / JPEG 80 %, omslag fra omslagsbildet eller valgt forside, innholdsfortegnelse fra
   overskriftene, språk «nb») og åpner delingsmenyen med filen.
 - **Hele biblioteket** som `.bokhylle-backup` (alle bøkene + leserinnstillinger, aldri API-nøkkelen).
 - **Automatisk sikkerhetskopi** (Innstillinger): velg en mappe én gang, velg daglig eller ukentlig. Kopien tas når

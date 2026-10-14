@@ -81,13 +81,14 @@ fun ImportButtons(enabled: Boolean = true, onImages: (uris: List<Uri>, preCroppe
     }
 }
 
-private fun startScanner(context: Context, launch: (IntentSenderRequest) -> Unit) {
+/** @param pageLimit maks antall sider; null = ingen grense (standard i dokumentskanneren). */
+internal fun startScanner(context: Context, pageLimit: Int? = null, launch: (IntentSenderRequest) -> Unit) {
     val activity = context.findActivity() ?: return
     val options = GmsDocumentScannerOptions.Builder()
         .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
         .setGalleryImportAllowed(true)
         .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
-        // Ingen setPageLimit: standard er ingen grense på antall sider i én skanning.
+        .apply { if (pageLimit != null) setPageLimit(pageLimit) }
         .build()
     GmsDocumentScanning.getClient(options).getStartScanIntent(activity)
         .addOnSuccessListener { launch(IntentSenderRequest.Builder(it).build()) }

@@ -136,6 +136,8 @@ fun BookScreen(
                 )
             }
 
+            CoverCard(b, pages)
+
             copying?.let { p ->
                 Text("Kopierer bilder: ${p.done} av ${p.total}")
                 LinearProgressIndicator(progress = { p.done.toFloat() / p.total.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())

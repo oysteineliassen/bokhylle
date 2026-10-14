@@ -75,6 +75,18 @@ sh('adb shell input keyevent KEYCODE_WAKEUP');
 sh('adb shell wm dismiss-keyguard || true');
 sh(`adb shell am start -W -n ${PKG}/.MainActivity`);
 
+// 0. Oppgradering (UPGRADE=1): boka laget i forrige release skal overleve databaseendringer i den nye versjonen.
+if (process.env.UPGRADE === '1') {
+  await need(/^Testboka$/, 'boka fra forrige versjon etter oppgradering', 30000);
+  assertAlive();
+  tap(await need(/^Testboka$/, 'boka fra forrige versjon'));
+  await need(/^Omslag$/, 'bokskjermen etter oppgradering');
+  assertAlive();
+  shot('0-oppgradert');
+  console.log('Oppgradering fra forrige release OK');
+  process.exit(0);
+}
+
 // 1. Tomt bibliotek
 await need(/Ingen bøker ennå/, 'tomt bibliotek', 30000);
 shot('1-bibliotek-tomt');

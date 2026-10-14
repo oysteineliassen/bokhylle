@@ -17,6 +17,7 @@ interface BookDao {
             (SELECT COUNT(*) FROM pages p WHERE p.bookId = b.id AND p.status = 0) AS ventende,
             (SELECT COUNT(*) FROM pages p WHERE p.bookId = b.id AND p.flagget = 1) AS flaggede,
             COALESCE(
+                b.omslagBilde,
                 (SELECT p.bildeSti FROM pages p WHERE p.id = b.coverPageId AND p.bookId = b.id),
                 (SELECT p.bildeSti FROM pages p WHERE p.bookId = b.id ORDER BY p.sorteringsIndeks, p.id LIMIT 1)
             ) AS omslag,
@@ -45,6 +46,11 @@ interface BookDao {
 
     @Delete
     suspend fun delete(book: Book)
+
+    @Query("UPDATE books SET omslagBilde = :path WHERE id = :bookId")
+
+    suspend fun setCoverImage(bookId: Long, path: String?)
+
 
     @Query("UPDATE books SET sistLestSide = :pageId WHERE id = :bookId")
     suspend fun setLastRead(bookId: Long, pageId: Long)

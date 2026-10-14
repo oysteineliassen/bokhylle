@@ -14,6 +14,8 @@ data class Book(
     val forfatter: String = "",
     /** Siden som brukes som omslag. null = første side. */
     val coverPageId: Long? = null,
+    /** Eget bilde av omslaget (tatt eller valgt av brukeren). Går foran [coverPageId]. */
+    val omslagBilde: String? = null,
     val opprettet: Long = System.currentTimeMillis(),
     /** Id-en til siden som sist ble lest (følger siden selv om rekkefølgen endres). */
     val sistLestSide: Long? = null,
