@@ -1,0 +1,162 @@
+name: Bokhylle
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Et nytt bygg på samme gren avbryter det forrige, så bare det siste bruker minutter.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Release og qa krympes med R8 hver for seg; i to parallelle jobber halveres ventetiden.
+  build-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Byggnummer
+        # +100 så versjonene fortsetter over byggene fra det gamle test-repoet (siste var 23).
+        run: echo "BYGGNR=$((GITHUB_RUN_NUMBER + 100))" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+          # Lagre cachen også fra andre grener enn main, så neste bygg går raskere.
+          cache-read-only: false
+
+      - name: Enhetstester og qa-APK
+        run: gradle --no-daemon :core:test assembleQa
+
+      - name: Gi APK-en lesbart navn
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/qa/app-qa.apk out/bokhylle-qa.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bokhylle-qa-apk
+          path: out/bokhylle-qa.apk
+          retention-days: 1
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: testrapport
+          path: core/build/reports/tests/
+          if-no-files-found: ignore
+          retention-days: 3
+
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Byggnummer
+        # +100 så versjonene fortsetter over byggene fra det gamle test-repoet (siste var 23).
+        run: echo "BYGGNR=$((GITHUB_RUN_NUMBER + 100))" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+          cache-read-only: false
+
+      - name: Release-APK
+        run: gradle --no-daemon assembleRelease
+
+      - name: Gi APK-en lesbart navn
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk "out/Bokhylle-1.0.${BYGGNR}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bokhylle-apk
+          path: out/Bokhylle-*.apk
+          retention-days: 3
+
+  smoke-test:
+    needs: [build-qa, build-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Byggnummer
+        # +100 så versjonene fortsetter over byggene fra det gamle test-repoet (siste var 23).
+        run: echo "BYGGNR=$((GITHUB_RUN_NUMBER + 100))" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: bokhylle-qa-apk
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bokhylle-apk
+
+      - name: Slå på KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Røyktest på Android-emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb install -r bokhylle-qa.apk
+            node test/smoke.mjs
+            adb uninstall no.oystein.bokhylle
+            adb install Bokhylle-*.apk
+            QUICK=1 node test/smoke.mjs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bokhylle-skjermbilder
+          path: skjerm-*.png
+          if-no-files-found: ignore
+          retention-days: 3
+
+  release:
+    needs: [build-release, smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Byggnummer
+        # +100 så versjonene fortsetter over byggene fra det gamle test-repoet (siste var 23).
+        run: echo "BYGGNR=$((GITHUB_RUN_NUMBER + 100))" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bokhylle-apk
+
+      - name: Publiser som release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: bokhylle-v1.0.${{ env.BYGGNR }}
+          name: Bokhylle 1.0.${{ env.BYGGNR }}
+          files: Bokhylle-*.apk
+          body: |
+            Last ned APK-filen på telefonen og åpne den for å installere.
+            Nye versjoner installeres over den gamle, og bøkene beholdes.
