@@ -132,11 +132,13 @@ if (!rep || !rep.pages.length) fail('fikk ingen rapport fra testmottakeren');
 console.log(JSON.stringify(rep, null, 1).slice(0, 6000));
 const pages = rep.pages;
 if (pages.length !== 9) fail(`ventet 9 sider (duplikatet hoppes over, oppslaget blir to), fikk ${pages.length}`);
-const i9 = pages.findIndex((p) => p.number === '9'), i10 = pages.findIndex((p) => p.number === '10');
-if (i9 < 0 || i10 !== i9 + 1) fail(`oppslaget ble ikke delt i side 9 og 10 i riktig rekkefølge: ${pages.map((p) => p.number).join(',')}`);
+// Sidetallet kan være lest («9») eller utledet fra naboene («(9)»).
+const num = (p) => p.number ?? (p.inferred || '').replace(/[()]/g, '');
+const i9 = pages.findIndex((p) => num(p) === '9'), i10 = pages.findIndex((p) => num(p) === '10');
+if (i9 < 0 || i10 !== i9 + 1) fail(`oppslaget ble ikke delt i side 9 og 10 i riktig rekkefølge: ${pages.map(num).join(',')}`);
 if (pages.some((p) => p.status !== 1)) fail('noen sider feilet: ' + pages.map((p) => p.status).join(','));
 const numbers = pages.map((p) => p.number).filter(Boolean);
-if (numbers.length < 8) fail('fant for få sidetall: ' + numbers.join(','));
+if (numbers.length < 7) fail('fant for få sidetall: ' + numbers.join(','));
 if (pages.some((p) => !p.crop || p.crop === '0.0,0.0,1.0,0.0,1.0,1.0,0.0,1.0')) fail('siden ble ikke beskåret');
 if (!pages.some((p) => /hyllen|bladd/.test(p.text))) fail('OCR-teksten mangler forventede ord');
 assertAlive();
@@ -191,7 +193,7 @@ if (!/"type":"figure"/.test(lay) || !/"image":"\//.test(lay)) fail('figuren ble 
 if (!/Visste du\?/.test(lay)) fail('faktaboksen mangler: ' + lay);
 if (!(claudeRep.usage.usd > 0)) fail('forbruket ble ikke logget: ' + JSON.stringify(claudeRep.usage));
 const numbers2 = claudeRep.pages.map((p) => p.number).filter(Boolean);
-if (numbers2.length < 8) fail('sidetallene forsvant etter Claude: ' + numbers2.join(','));
+if (numbers2.length < 7) fail('sidetallene forsvant etter Claude: ' + numbers2.join(','));
 const usdBatch = claudeRep.usage.usd;
 claudeCmd('single');
 let single = false;

@@ -32,14 +32,14 @@ object MlKitOcr {
             val b = box(block.boundingBox)
             val edge = 0.006f
             val cut = b.left <= edge || b.top <= edge || b.right >= 1 - edge || b.bottom >= 1 - edge
-            // Litt luft rundt blokken, så bakgrunnen mellom linjene også teller med.
-            val padded = Box((b.left - 0.01f).coerceAtLeast(0f), (b.top - 0.005f).coerceAtLeast(0f), (b.right + 0.01f).coerceAtMost(1f), (b.bottom + 0.005f).coerceAtMost(1f))
-            val colored = b.width > 0.05f && b.height > 0.02f &&
-                ImageOps.colorDistance(ImageOps.backgroundColor(bitmap, padded), paper) > COLORED_DISTANCE
-            blocks += OcrBlockInfo(bi, b, cut, colored)
+            // Fargen vurderes per linje: ML Kit kan slå en faktaboks sammen med brødteksten rundt.
+            val coloredLines = mutableListOf<OcrLine>()
+            val plainLines = mutableListOf<OcrLine>()
             for (line in block.lines) {
                 val lb = box(line.boundingBox)
-                lines += OcrLine(
+                val padded = Box((lb.left - 0.01f).coerceAtLeast(0f), (lb.top - 0.006f).coerceAtLeast(0f), (lb.right + 0.01f).coerceAtMost(1f), (lb.bottom + 0.006f).coerceAtMost(1f))
+                val colored = lb.width > 0.03f && ImageOps.colorDistance(ImageOps.backgroundColor(bitmap, padded), paper) > COLORED_DISTANCE
+                val ocrLine = OcrLine(
                     text = line.text,
                     left = lb.left, top = lb.top, right = lb.right, bottom = lb.bottom,
                     block = bi,
@@ -49,10 +49,24 @@ object MlKitOcr {
                         OcrElement(e.text, eb.left, eb.top, eb.right, eb.bottom)
                     },
                 )
+                if (colored) coloredLines += ocrLine else plainLines += ocrLine
+            }
+            // Blandet blokk: de fargede linjene får en egen blokk.
+            val boxIndex = if (plainLines.isEmpty()) bi else SPLIT_OFFSET + bi
+            lines += plainLines
+            lines += coloredLines.map { it.copy(block = boxIndex) }
+            if (plainLines.isNotEmpty() || coloredLines.isEmpty()) blocks += OcrBlockInfo(bi, b, cut, colored = false)
+            if (coloredLines.isNotEmpty()) {
+                val cb = coloredLines.map { Box(it.left, it.top, it.right, it.bottom) }.reduce(Box::union)
+                blocks += OcrBlockInfo(boxIndex, cb, cut, colored = true)
             }
         }
+        lines.sortWith(compareBy({ it.block % SPLIT_OFFSET }, { it.top }))
         return OcrPage(lines, blocks)
     }
+
+    /** Blokknummer for fargede linjer som er skilt ut fra en blandet blokk. */
+    private const val SPLIT_OFFSET = 10000
 
     /** Hvor ulik bakgrunnen må være papirfargen (RGB-avstand) for at blokken regnes som faktaboks. */
     private const val COLORED_DISTANCE = 28f
