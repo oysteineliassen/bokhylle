@@ -178,7 +178,12 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
                     Modifier.fillMaxWidth().padding(start = hPad, end = hPad, top = topPad).height(with(density) { heightPx.toDp() }).clipToBounds(),
                     verticalArrangement = Arrangement.spacedBy(with(density) { styles.spacing(density).toDp() }),
                 ) {
-                    ScreenContent(screen, styles, theme, onFigure = { path, d -> figure = path to d })
+                    ScreenContent(
+                        screen, styles, theme,
+                        onFigure = { path, d -> figure = path to d },
+                        onPrev = { scope.launch { if (pagerState.currentPage > 0) pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
+                        onNext = { scope.launch { if (pagerState.currentPage < list.size - 1) pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
+                    )
                 }
                 Text(
                     "${page.sidetallVisning ?: ""}   ${screen.pageIndex + 1} / ${pages.size}",
@@ -304,7 +309,14 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
 }
 
 @Composable
-private fun ScreenContent(screen: Screen, styles: ReaderStyles, theme: ReaderTheme, onFigure: (String, String?) -> Unit) {
+private fun ScreenContent(
+    screen: Screen,
+    styles: ReaderStyles,
+    theme: ReaderTheme,
+    onFigure: (String, String?) -> Unit,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+) {
     val density = LocalDensity.current
     for (item in screen.items) {
         when (item) {
@@ -325,7 +337,21 @@ private fun ScreenContent(screen: Screen, styles: ReaderStyles, theme: ReaderThe
                 val h = with(density) { item.height.toDp() }
                 Box(
                     Modifier.fillMaxWidth().height(h).clip(RoundedCornerShape(4.dp))
-                        .then(if (item.image != null) Modifier.clickable { onFigure(item.image, item.description) } else Modifier),
+                        .then(
+                            if (item.image != null) {
+                                // Samme tappsoner som resten av siden: bare midten åpner figuren i fullskjerm.
+                                Modifier.pointerInput(item.image) {
+                                    detectTapGestures { o ->
+                                        val third = size.width / 3f
+                                        when {
+                                            o.x < third -> onPrev()
+                                            o.x > third * 2 -> onNext()
+                                            else -> onFigure(item.image, item.description)
+                                        }
+                                    }
+                                }
+                            } else Modifier,
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (item.image != null) {
