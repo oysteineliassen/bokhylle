@@ -8,6 +8,8 @@ import kotlinx.coroutines.SupervisorJob
 import no.oystein.bokhylle.data.AppDatabase
 import no.oystein.bokhylle.data.BookRepository
 import no.oystein.bokhylle.data.FileStore
+import no.oystein.bokhylle.importer.Importer
+import no.oystein.bokhylle.work.BookProcessor
 
 class BokhylleApp : Application() {
     /** Lever like lenge som prosessen; brukes til kopiering som ikke skal avbrytes når en skjerm lukkes. */
@@ -15,6 +17,8 @@ class BokhylleApp : Application() {
     val db by lazy { AppDatabase.create(this) }
     val files by lazy { FileStore(this) }
     val repo by lazy { BookRepository(this, db, files) }
+    val importer by lazy { Importer(this, db, files) }
+    val processor by lazy { BookProcessor(this) }
 }
 
 val Context.app: BokhylleApp get() = applicationContext as BokhylleApp

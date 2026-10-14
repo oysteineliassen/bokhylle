@@ -9,7 +9,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,8 +40,12 @@ fun NewBookScreen(onBack: () -> Unit, onCreated: (Long) -> Unit) {
     var title by rememberSaveable { mutableStateOf("") }
     var author by rememberSaveable { mutableStateOf("") }
 
-    fun create() = scope.launch {
-        onCreated(context.app.repo.createBook(title, author))
+    fun create(images: List<android.net.Uri> = emptyList(), preCropped: Boolean = false) = scope.launch {
+        val app = context.app
+        val id = app.repo.createBook(title, author)
+        // Kopieringen fortsetter selv om skjermen lukkes.
+        if (images.isNotEmpty()) app.appScope.launch { app.importer.import(id, images, preCropped) }
+        onCreated(id)
     }
 
     Scaffold(
@@ -65,8 +70,14 @@ fun NewBookScreen(onBack: () -> Unit, onCreated: (Long) -> Unit) {
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 modifier = Modifier.fillMaxWidth(),
             )
-            Button(onClick = { create() }, enabled = title.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-                Text("Opprett bok")
+            Text(
+                "Ta bilder av alle sidene med kameraet først, og velg dem så her – gjerne alle på én gang. " +
+                    "Rekkefølgen finnes ut fra sidetallene.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            ImportButtons(enabled = title.isNotBlank()) { uris, preCropped -> create(uris, preCropped) }
+            TextButton(onClick = { create() }, enabled = title.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Text("Opprett bok uten sider")
             }
         }
     }

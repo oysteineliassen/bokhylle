@@ -79,8 +79,8 @@ tap(await need(/^Tittel$/, 'tittelfelt'));
 type('Testboka');
 tap(await need(/^Forfatter$/, 'forfatterfelt'));
 type('Ola Nordmann');
-tap(await need(/^Opprett bok$/, 'Opprett bok'));
-await need(/^0 sider$|Velg bilder/, 'bokskjermen');
+tap(await need(/^Opprett bok uten sider$/, 'Opprett bok'));
+await need(/^0 sider$/, 'bokskjermen');
 shot('2-ny-bok');
 // Tilbake til biblioteket (første «tilbake» kan gå med til å skjule tastaturet).
 for (let i = 0; i < 3 && !(await waitFor((n) => n.text === 'Testboka' && /Ola/.test(visible()), 1500)); i++) {
@@ -95,5 +95,41 @@ if (QUICK) {
   console.log('Hurtigtest OK');
   process.exit(0);
 }
+
+// 3. Import og OCR av syntetiske boksider (testmottakeren i debug-bygget).
+async function report() {
+  sh('adb logcat -c');
+  sh(`adb shell am broadcast -n ${PKG}/.TestReceiver -a ${PKG}.TEST_REPORT`);
+  for (let i = 0; i < 20; i++) {
+    await sleep(500);
+    const l = log();
+    const end = l.match(/RAPPORT-SLUTT (\d+)/);
+    if (!end) continue;
+    const parts = [...l.matchAll(/RAPPORT\[(\d+)\] (.*)$/gm)].sort((a, b) => a[1] - b[1]).map((m) => m[2]);
+    try { return JSON.parse(parts.join('')); } catch (e) { console.log('kunne ikke lese rapport', e.message); }
+  }
+  return null;
+}
+sh(`adb shell am broadcast -n ${PKG}/.TestReceiver -a ${PKG}.TEST_IMPORT`);
+let rep = null;
+const end = Date.now() + 240000;
+while (Date.now() < end) {
+  await sleep(4000);
+  rep = await report();
+  const pages = rep?.pages ?? [];
+  console.log(`  ${pages.filter((p) => p.status !== 0).length} av ${pages.length} sider behandlet`);
+  if (pages.length > 0 && pages.every((p) => p.status !== 0)) break;
+}
+if (!rep || !rep.pages.length) fail('fikk ingen rapport fra testmottakeren');
+console.log(JSON.stringify(rep, null, 1).slice(0, 6000));
+const pages = rep.pages;
+if (pages.length !== 7) fail(`ventet 7 sider (duplikatet skal hoppes over), fikk ${pages.length}`);
+if (pages.some((p) => p.status !== 1)) fail('noen sider feilet: ' + pages.map((p) => p.status).join(','));
+const numbers = pages.map((p) => p.number).filter(Boolean);
+if (numbers.length < 6) fail('fant for få sidetall: ' + numbers.join(','));
+if (pages.some((p) => !p.crop || p.crop === '0.0,0.0,1.0,0.0,1.0,1.0,0.0,1.0')) fail('siden ble ikke beskåret');
+if (!pages.some((p) => /hyllen|bladd/.test(p.text))) fail('OCR-teksten mangler forventede ord');
+assertAlive();
+console.log('Import og OCR OK');
 
 console.log('Alt OK');

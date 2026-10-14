@@ -42,6 +42,14 @@ android {
         }
     }
 
+    // Testmottakeren (røyktesten i CI) er bare med i debug-bygget.
+    sourceSets {
+        getByName("debug") {
+            java.srcDir("src/testkit/java")
+            manifest.srcFile("src/testkit/AndroidManifest.xml")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -81,6 +89,12 @@ dependencies {
 
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+
+    // OCR på telefonen (modellen ligger i appen, virker uten nett) og dokumentskanneren fra Google Play-tjenester.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
     testImplementation("junit:junit:4.13.2")
 }

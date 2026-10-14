@@ -36,12 +36,28 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import android.net.Uri
+import androidx.compose.material3.LinearProgressIndicator
+import kotlinx.coroutines.flow.map
+import no.oystein.bokhylle.BokhylleApp
 import no.oystein.bokhylle.app
+import no.oystein.bokhylle.importer.ImportProgress
+import no.oystein.bokhylle.importer.ImportResult
 import no.oystein.bokhylle.data.Book
 import no.oystein.bokhylle.data.BookRepository
 import no.oystein.bokhylle.data.Page
 
-class BookViewModel(val bookId: Long, private val repo: BookRepository) : ViewModel() {
+class BookViewModel(val bookId: Long, private val app: BokhylleApp) : ViewModel() {
+    private val repo: BookRepository = app.repo
+    val copying: StateFlow<ImportProgress?> = app.importer.progress.map { it[bookId] }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    var lastImport by mutableStateOf<ImportResult?>(null)
+        private set
+
+    fun import(uris: List<Uri>, preCropped: Boolean) {
+        app.appScope.launch { lastImport = app.importer.import(bookId, uris, preCropped) }
+    }
+
     val book: StateFlow<Book?> = repo.book(bookId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     val pages: StateFlow<List<Page>> = repo.pages(bookId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -52,7 +68,8 @@ class BookViewModel(val bookId: Long, private val repo: BookRepository) : ViewMo
 @Composable
 fun BookScreen(bookId: Long, onBack: () -> Unit) {
     val context = LocalContext.current
-    val vm: BookViewModel = viewModel(key = "bok-$bookId") { BookViewModel(bookId, context.app.repo) }
+    val vm: BookViewModel = viewModel(key = "bok-$bookId") { BookViewModel(bookId, context.app) }
+    val copying by vm.copying.collectAsState()
     val book by vm.book.collectAsState()
     val pages by vm.pages.collectAsState()
     var confirmDelete by remember { mutableStateOf(false) }
@@ -74,7 +91,41 @@ fun BookScreen(bookId: Long, onBack: () -> Unit) {
         ) {
             val b = book ?: return@Column
             if (b.forfatter.isNotBlank()) Text(b.forfatter, style = MaterialTheme.typography.titleMedium)
+            val pending = pages.count { it.status == Page.STATUS_NY }
+            val failed = pages.count { it.status == Page.STATUS_FEIL }
             Text("${pages.size} sider", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth())
+
+            copying?.let { p ->
+                Text("Kopierer bilder: ${p.done} av ${p.total}")
+                LinearProgressIndicator(progress = { p.done.toFloat() / p.total.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
+            }
+            if (pending > 0) {
+                val done = pages.size - pending
+                Text("Leser tekst (OCR): $done av ${pages.size}")
+                LinearProgressIndicator(progress = { done.toFloat() / pages.size }, modifier = Modifier.fillMaxWidth())
+                Text(
+                    "Fortsetter i bakgrunnen selv om du lukker appen.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (failed > 0) {
+                Text("$failed bilder kunne ikke leses.", color = MaterialTheme.colorScheme.error)
+            }
+            vm.lastImport?.let { r ->
+                if (r.duplicates > 0 || r.failed > 0) {
+                    Text(
+                        buildString {
+                            append("${r.added} nye sider lagt til.")
+                            if (r.duplicates > 0) append(" ${r.duplicates} bilder fantes fra før og ble hoppet over.")
+                            if (r.failed > 0) append(" ${r.failed} kunne ikke kopieres.")
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+
+            Text("Legg til sider", style = MaterialTheme.typography.titleMedium)
+            ImportButtons(enabled = copying == null) { uris, preCropped -> vm.import(uris, preCropped) }
         }
     }
 
