@@ -57,6 +57,12 @@ object ImageOps {
 
     fun decode(path: String): Bitmap? = BitmapFactory.decodeFile(path)
 
+    /** Roterer med klokka (0, 90, 180 eller 270 grader). Gir samme bitmap tilbake ved 0. */
+    fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {
+        if (degrees % 360 == 0) return bitmap
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, Matrix().apply { postRotate(degrees.toFloat()) }, true)
+    }
+
     /** Lagrer som WebP (tapsbasert). */
     fun save(bitmap: Bitmap, file: File, quality: Int = QUALITY) {
         file.parentFile?.mkdirs()

@@ -29,9 +29,14 @@ import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Numbers
 import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.RotateRight
+import androidx.compose.material.icons.outlined.ScreenRotation
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import no.oystein.bokhylle.work.OrientWorker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -96,6 +101,8 @@ class ReviewViewModel(val bookId: Long, private val app: BokhylleApp) : ViewMode
     fun accept(page: Page, accepted: Boolean) = viewModelScope.launch { repo.setAccepted(page, accepted) }
     fun resetPlacement(page: Page) = viewModelScope.launch { repo.resetPlacement(page) }
     fun setCover(page: Page) = viewModelScope.launch { repo.setCover(bookId, page.id) }
+    fun rotate(page: Page, degrees: Int) = viewModelScope.launch { repo.rotate(page, degrees) }
+    fun fixOrientation() = repo.fixOrientation(bookId)
     fun import(uris: List<android.net.Uri>, preCropped: Boolean) {
         app.appScope.launch { app.importer.import(bookId, uris, preCropped) }
     }
@@ -112,6 +119,9 @@ fun ReviewScreen(bookId: Long, onBack: () -> Unit, onCrop: (Long) -> Unit) {
     var selected by remember { mutableStateOf<Long?>(null) }
     var missingDialog by remember { mutableStateOf<MissingPages?>(null) }
     val flagged = pages.count { it.flagget }
+    val orientInfo by remember(bookId) {
+        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(OrientWorker.workName(bookId)).map { it.firstOrNull() }
+    }.collectAsState(initial = null)
     val shown = if (onlyFlagged) pages.filter { it.flagget } else pages
 
     Scaffold(
@@ -140,6 +150,24 @@ fun ReviewScreen(bookId: Long, onBack: () -> Unit, onCrop: (Long) -> Unit) {
                             onClick = { onlyFlagged = !onlyFlagged },
                             label = { Text("Bare flaggede ($flagged)") },
                             leadingIcon = { Icon(Icons.Outlined.Flag, null, Modifier.size(18.dp)) },
+                        )
+                        val orient = orientInfo
+                        val running = orient?.state == WorkInfo.State.RUNNING || orient?.state == WorkInfo.State.ENQUEUED
+                        AssistChip(
+                            onClick = { if (!running) vm.fixOrientation() },
+                            label = {
+                                Text(
+                                    when {
+                                        running ->
+                                            "Sjekker retning … ${orient?.progress?.getInt(OrientWorker.KEY_DONE, 0) ?: 0} av ${orient?.progress?.getInt(OrientWorker.KEY_TOTAL, 0) ?: 0}"
+                                        orient?.state == WorkInfo.State.SUCCEEDED ->
+                                            "Rett opp liggende bilder (${orient?.outputData?.getInt(OrientWorker.KEY_ROTATED, 0) ?: 0} snudd sist)"
+                                        else -> "Rett opp liggende bilder"
+                                    },
+                                )
+                            },
+                            leadingIcon = { Icon(Icons.Outlined.ScreenRotation, null, Modifier.size(18.dp)) },
+                            modifier = Modifier.semantics { contentDescription = "Rett opp liggende bilder" },
                         )
                     }
                     if (missing.isNotEmpty()) {
@@ -265,6 +293,8 @@ private fun PageSheet(page: Page, position: Int, onDismiss: () -> Unit, vm: Revi
             else if (page.godkjent) SheetAction(Icons.Outlined.Flag, "Angre godkjenning") { vm.accept(page, false) }
             // Etter «ferdig kontrollert» finnes ikke bildet fra før beskjæring lenger.
             if (page.originalSti != null) SheetAction(Icons.Outlined.Crop, "Juster beskjæring") { onCrop() }
+            // Hele originalbildet snus; et oppslag deles på nytt etterpå.
+            if (page.originalSti != null) SheetAction(Icons.Outlined.RotateRight, "Roter bildet 90° med klokka") { vm.rotate(page, 90); onDismiss() }
             SheetAction(Icons.Outlined.Image, "Bruk som omslag") { vm.setCover(page); onDismiss() }
             if (page.manuellPlassering) SheetAction(Icons.Outlined.Restore, "Sorter etter sidetall igjen") { vm.resetPlacement(page) }
             SheetAction(Icons.Outlined.Delete, "Slett siden") { confirmDelete = true }

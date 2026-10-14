@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import no.oystein.bokhylle.core.Json
 import no.oystein.bokhylle.data.Page
+import no.oystein.bokhylle.image.ImageOps
 import java.io.File
 import java.io.FileOutputStream
 
@@ -47,10 +48,12 @@ class TestReceiver : BroadcastReceiver() {
         // Side 5 mangler med vilje. Rekkefølgen er stokket, og side 2 er med to ganger (samme fil).
         val numbers = listOf(3, 1, 2, 4, 7, 6, 8)
         val files = numbers.map { n ->
-            File(dir, "side-$n.jpg").also { f -> FileOutputStream(f).use { drawPage(n).compress(Bitmap.CompressFormat.JPEG, 90, it) } }
+            // Side 7 er fotografert liggende (uten EXIF-retning, som når telefonen ligger flatt): appen må snu den selv.
+            val bitmap = if (n == 7) ImageOps.rotate(drawPage(n), 90) else drawPage(n)
+            File(dir, "side-$n.jpg").also { f -> FileOutputStream(f).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) } }
         }
-        // Et oppslag med side 9 og 10 i samme bilde.
-        val spread = File(dir, "oppslag-9-10.jpg").also { f -> FileOutputStream(f).use { drawSpread(9).compress(Bitmap.CompressFormat.JPEG, 90, it) } }
+        // Et oppslag med side 9 og 10 i samme bilde, også liggende (motsatt vei), så ryggen går på tvers av bildet.
+        val spread = File(dir, "oppslag-9-10.jpg").also { f -> FileOutputStream(f).use { ImageOps.rotate(drawSpread(9), 270).compress(Bitmap.CompressFormat.JPEG, 90, it) } }
         val uris = files.map { Uri.fromFile(it) } + Uri.fromFile(files[2]) + Uri.fromFile(spread)
         val bookId = app.repo.createBook(TITLE, "Test Testesen")
         val result = app.importer.import(bookId, uris)

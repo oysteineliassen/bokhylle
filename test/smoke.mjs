@@ -136,6 +136,7 @@ if (pages.length !== 9) fail(`ventet 9 sider (duplikatet hoppes over, oppslaget 
 const num = (p) => p.number ?? (p.inferred || '').replace(/[()]/g, '');
 const i9 = pages.findIndex((p) => num(p) === '9'), i10 = pages.findIndex((p) => num(p) === '10');
 if (i9 < 0 || i10 !== i9 + 1) fail(`oppslaget ble ikke delt i side 9 og 10 i riktig rekkefølge: ${pages.map(num).join(',')}`);
+if (!pages.some((p) => p.number === '7')) fail('den liggende siden 7 ble ikke snudd og lest: ' + pages.map(num).join(','));
 if (pages.some((p) => p.status !== 1)) fail('noen sider feilet: ' + pages.map((p) => p.status).join(','));
 const numbers = pages.map((p) => p.number).filter(Boolean);
 if (numbers.length < 7) fail('fant for få sidetall: ' + numbers.join(','));
@@ -156,6 +157,13 @@ tap(await need(/^Testbok OCR$/, 'testboka i biblioteket', 20000));
 tap(await need(/^Kontroller rekkefølge/, 'Kontroller rekkefølge'));
 await need(/^Mangler 5$/, 'manglende side 5');
 shot('4-kontroll');
+// «Rett opp liggende bilder»: alt står nå riktig vei, så ingenting skal snus.
+sh('adb logcat -c');
+tap(await need(/^Rett opp liggende bilder$/, 'knappen Rett opp liggende bilder'));
+let orientLine = '';
+for (let i = 0; i < 60 && !orientLine; i++) { await sleep(1000); orientLine = (log().match(/retning: \d+ av \d+ bilder rotert/) || [''])[0]; }
+console.log('  ' + (orientLine || 'ingen svar fra retningssjekken'));
+if (!/retning: 0 av/.test(orientLine)) fail('retningssjekken snudde sider som allerede sto riktig: ' + orientLine);
 assertAlive();
 sh('adb shell input keyevent KEYCODE_BACK');
 console.log('Sortering og kontrollskjerm OK');

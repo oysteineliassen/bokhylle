@@ -15,11 +15,13 @@ Last ned `Bokhylle-1.0.N.apk` på telefonen og åpne den. Nye versjoner installe
 2. **Ny bok** → skriv tittel og forfatter → **Velg bilder** (Photo Picker), **Velg fra Filer** (ingen grense på antall)
    eller **Skann sider i appen** (ML Kits dokumentskanner med kantretting). Eller marker bildene i galleriet og velg
    **Del → Bokhylle**.
-3. Appen jobber i bakgrunnen (også om den lukkes): bildet komprimeres, siden finnes og rettes opp, oppslag deles i to,
-   teksten leses (OCR) og sidene sorteres etter sidetall.
+3. Appen jobber i bakgrunnen (også om den lukkes): bildet komprimeres, liggende og opp-ned bilder snus (ut fra teksten,
+   siden telefonen ofte tar feil av retningen når den holdes flatt over boka), siden finnes og rettes opp, oppslag deles
+   i to, teksten leses (OCR) og sidene sorteres etter sidetall.
 4. **Kontroller rekkefølge** viser alle sidene. Flaggede sider (mangler sidetall, duplikat, hopp/tilbakegang) er uthevet,
    og manglende sider vises («Mangler 48»), med knapp for å legge dem inn. Hold inne og dra for å flytte en side.
-   Trykk på en side for å sette sidetall, godkjenne, slette, bruke som omslag eller justere hjørnene.
+   Trykk på en side for å sette sidetall, godkjenne, slette, bruke som omslag, justere hjørnene eller rotere bildet.
+   **Rett opp liggende bilder** sjekker retningen på alle bildene i boka på nytt og snur og deler dem som ligger feil.
 5. **Send til Claude** (valgfritt, krever API-nøkkel) for riktige avsnitt, overskrifter, faktabokser, figurer og fotnoter.
 6. **Les**: trykk på høyre tredjedel for neste side, venstre for forrige, midten for menyen. Sveip virker også.
 

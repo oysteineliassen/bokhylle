@@ -36,6 +36,8 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("app")
+            // Bare ARM: alle Android-telefoner bruker ARM, og ML Kits OCR-bibliotek er ~11 MB per arkitektur.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
         debug {
             signingConfig = signingConfigs.getByName("app")
@@ -44,10 +46,14 @@ android {
         create("qa") {
             initWith(getByName("release"))
             matchingFallbacks += "release"
+            // Emulatoren i CI er x86_64.
+            ndk { abiFilters.clear() }
         }
     }
 
     packaging {
+        // Komprimerte native biblioteker: APK-en blir mye mindre å laste ned (de pakkes ut ved installasjon).
+        jniLibs { useLegacyPackaging = true }
         resources {
             excludes += listOf(
                 "META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/INDEX.LIST",

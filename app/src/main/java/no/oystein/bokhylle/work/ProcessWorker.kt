@@ -75,11 +75,18 @@ class ProcessWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
     private suspend fun processPage(page: Page) {
         try {
-            // 1. Komprimert original (opprettet etter EXIF, maks 2000 px), så hjørnene kan justeres senere.
+            // 1. Komprimert original (rettet opp etter EXIF og teksten, maks 2000 px), så hjørnene kan justeres senere.
             var originalPath = page.originalSti
             if (originalPath == null || !File(originalPath).exists()) {
                 val incoming = File(page.bildeSti)
-                val bitmap = ImageOps.decodeUpright(incoming) ?: error("kan ikke lese bildet")
+                val decoded = ImageOps.decodeUpright(incoming) ?: error("kan ikke lese bildet")
+                // Liggende eller opp-ned bilde: snu det før siden og et eventuelt oppslag letes etter.
+                val rotation = MlKitOcr.detectRotation(decoded)
+                val bitmap = ImageOps.rotate(decoded, rotation)
+                if (bitmap != decoded) {
+                    decoded.recycle()
+                    Log.d(TAG, "Side ${page.id}: bildet rotert $rotation grader")
+                }
                 val file = app.files.newPageFile(page.bookId, "original")
                 ImageOps.save(bitmap, file)
                 bitmap.recycle()

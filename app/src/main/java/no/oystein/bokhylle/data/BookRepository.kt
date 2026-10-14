@@ -2,12 +2,16 @@ package no.oystein.bokhylle.data
 
 import android.content.Context
 import androidx.work.WorkManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import no.oystein.bokhylle.core.OcrPage
 import no.oystein.bokhylle.core.PageNumber
 import no.oystein.bokhylle.core.PageNumberDetector
 import no.oystein.bokhylle.core.Quad
+import no.oystein.bokhylle.image.ImageOps
 import no.oystein.bokhylle.work.CompactWorker
+import no.oystein.bokhylle.work.OrientWorker
 import no.oystein.bokhylle.work.ProcessWorker
 
 class BookRepository(
@@ -124,6 +128,51 @@ class BookRepository(
         )
         ProcessWorker.enqueue(context, page.bookId)
     }
+
+    /**
+     * Roterer originalbildet [degrees] grader med klokka, og finner siden(e) i det på nytt i bakgrunnen.
+     * Var bildet delt som oppslag, slettes den andre halvdelen; den lages igjen om bildet fortsatt er et oppslag.
+     */
+    suspend fun rotate(page: Page, degrees: Int) = withContext(Dispatchers.IO) {
+        rotateNow(page, degrees)
+    }
+
+    private suspend fun rotateNow(page: Page, degrees: Int) {
+        val oldPath = page.originalSti ?: return
+        val bitmap = ImageOps.decode(oldPath) ?: return
+        val rotated = ImageOps.rotate(bitmap, degrees)
+        val file = files.newPageFile(page.bookId, "original")
+        ImageOps.save(rotated, file)
+        if (rotated != bitmap) rotated.recycle()
+        bitmap.recycle()
+
+        val fromSameImage = db.pages().forBook(page.bookId).filter { it.originalSti == oldPath }
+        val keep = fromSameImage.minByOrNull { it.importIndeks } ?: return
+        for (other in fromSameImage) {
+            if (other.id == keep.id) continue
+            db.pages().delete(other)
+            files.delete(other.bildeSti)
+            PageImages.figurePaths(other).forEach { files.delete(it) }
+        }
+        PageImages.figurePaths(keep).forEach { files.delete(it) }
+        db.pages().update(
+            keep.copy(
+                originalSti = file.path,
+                beskjaering = null,
+                status = Page.STATUS_NY,
+                oppdagetSidetall = if (keep.sidetallManuelt) keep.oppdagetSidetall else null,
+                blocksJson = null,
+                trengerClaude = keep.trengerClaude || fromSameImage.any { it.ocrKilde == Page.KILDE_CLAUDE },
+                ocrKilde = Page.KILDE_MLKIT,
+            ),
+        )
+        files.delete(oldPath)
+        ProcessWorker.enqueue(context, page.bookId)
+    }
+
+    /** Finner liggende og opp-ned bilder i boka og snur dem (i bakgrunnen). */
+    fun fixOrientation(bookId: Long) = OrientWorker.enqueue(context, bookId)
+
     suspend fun setLastRead(bookId: Long, pageId: Long) = db.books().setLastRead(bookId, pageId)
 
     companion object {
