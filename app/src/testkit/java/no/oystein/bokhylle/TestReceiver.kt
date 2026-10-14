@@ -118,7 +118,7 @@ class TestReceiver : BroadcastReceiver() {
                         "id" to p.id, "status" to p.status, "number" to p.oppdagetSidetall, "inferred" to p.utledetSidetall,
                         "flags" to p.flaggGrunner, "flagged" to p.flagget, "crop" to p.beskjaering,
                         "source" to p.ocrKilde, "text" to (p.redigertTekst ?: p.ryddetTekst ?: p.ocrTekst).take(300),
-                        "layout" to (p.layoutJson?.take(600) ?: ""),
+                        "layout" to (p.layoutJson?.take(5000) ?: ""),
                     )
                 },
             ),
