@@ -1,5 +1,11 @@
 package no.oystein.bokhylle.ui.reader
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.LaunchedEffect
@@ -118,12 +124,8 @@ fun FigureDialog(path: String, description: String?, pageId: Long?, modelId: Str
     Dialog(onDismissRequest = { discardProposal(); onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             if (proposal != null) {
-                // Foto og tegning side om side (over hverandre på en stående skjerm).
-                Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Foto", color = Color.White)
-                    AsyncImage(model = File(path), contentDescription = "Foto", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().weight(1f))
-                    Text("Tegnet på nytt", color = Color.White)
-                    AsyncImage(model = File(proposal), contentDescription = "Tegning", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().weight(1f))
+                // Valget øverst (knappene nederst kunne havne bak navigasjonslinjen), så foto og tegning over hverandre.
+                Column(Modifier.fillMaxSize().systemBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(
                             onClick = { if (pageId != null) scope.launch { app.repo.useDrawing(pageId, path, proposal); onDismiss() } },
@@ -133,44 +135,64 @@ fun FigureDialog(path: String, description: String?, pageId: Long?, modelId: Str
                             Text("Behold fotoet", color = Color.White)
                         }
                     }
+                    Text("Tegnet på nytt", color = Color.White)
+                    AsyncImage(model = File(proposal), contentDescription = "Tegning", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().weight(1f))
+                    Text("Foto", color = Color.White)
+                    AsyncImage(model = File(path), contentDescription = "Foto", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().weight(1f))
                 }
             } else {
-                ZoomableImage(path, description, Modifier.fillMaxSize())
-                IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding()) {
-                    Icon(Icons.Default.Close, "Lukk", tint = Color.White)
-                }
+                // Øverst: lukk og «Tegn på nytt»/«Bruk fotoet igjen». Så bildet, og teksten rett under.
                 Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.6f)).navigationBarsPadding().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    if (description != null) Text(description, color = Color.White)
-                    val state = info?.state
-                    if (pageId != null) when {
-                        drawing -> OutlinedButton(onClick = { scope.launch { app.repo.usePhoto(pageId, path); onDismiss() } }) {
-                            Text("Bruk fotoet igjen", color = Color.White)
-                        }
-                        state == WorkInfo.State.RUNNING || state == WorkInfo.State.ENQUEUED -> Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                            Text(
-                                if (state == WorkInfo.State.ENQUEUED) "  Venter på nett …" else "  Claude tegner figuren (tar gjerne et minutt) …",
-                                color = Color.White,
-                            )
-                        }
-                        state == WorkInfo.State.SUCCEEDED -> Text(
-                            "Claude mener dette er et fotografi eller en detaljert illustrasjon, så fotoet beholdes.",
-                            color = Color.White,
-                        )
-                        !app.claude.hasKey -> Text("Legg inn en API-nøkkel i Innstillinger for å tegne figuren på nytt.", color = Color.White)
-                        else -> {
-                            if (state == WorkInfo.State.FAILED) {
-                                Text("Det gikk ikke: ${info?.outputData?.getString(DrawWorker.KEY_ERROR) ?: "ukjent feil"}", color = Color.White)
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Lukk", tint = Color.White) }
+                        Spacer(Modifier.weight(1f))
+                        val state = info?.state
+                        if (pageId != null) when {
+                            drawing -> OutlinedButton(
+                                onClick = { scope.launch { app.repo.usePhoto(pageId, path); onDismiss() } },
+                                modifier = Modifier.semantics { contentDescription = "Bruk fotoet igjen" },
+                            ) {
+                                Text("Bruk fotoet igjen", color = Color.White)
                             }
-                            val cost = formatUsd(ClaudeDraw.estimate(ClaudeModel.of(modelId), 1))
-                            OutlinedButton(
+                            state == WorkInfo.State.RUNNING || state == WorkInfo.State.ENQUEUED -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                                Text(if (state == WorkInfo.State.ENQUEUED) "  Venter på nett …" else "  Tegner …", color = Color.White)
+                            }
+                            state == WorkInfo.State.SUCCEEDED -> Unit
+                            app.claude.hasKey -> OutlinedButton(
                                 onClick = { work = DrawWorker.one(context, pageId, path) },
                                 modifier = Modifier.semantics { contentDescription = "Tegn på nytt" },
-                            ) { Text("Tegn på nytt (ca. $cost)", color = Color.White) }
+                            ) {
+                                Text("Tegn på nytt (ca. ${formatUsd(ClaudeDraw.estimate(ClaudeModel.of(modelId), 1))})", color = Color.White)
+                            }
                         }
+                    }
+                    val aspect = remember(path) {
+                        val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeFile(path, o)
+                        if (o.outWidth > 0 && o.outHeight > 0) o.outWidth.toFloat() / o.outHeight else 1.4f
+                    }
+                    ZoomableImage(path, description, Modifier.fillMaxWidth().aspectRatio(aspect.coerceIn(0.4f, 3f)))
+                    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (description != null) Text(description, color = Color.White)
+                        val state = info?.state
+                        when {
+                            pageId == null || drawing -> Unit
+                            state == WorkInfo.State.RUNNING -> Text("Claude tegner figuren. Det tar gjerne et minutt.", color = Color.White)
+                            state == WorkInfo.State.SUCCEEDED -> Text(
+                                "Claude mener dette er et fotografi eller en detaljert illustrasjon, så fotoet beholdes.",
+                                color = Color.White,
+                            )
+                            state == WorkInfo.State.FAILED -> Text(
+                                "Det gikk ikke: ${info?.outputData?.getString(DrawWorker.KEY_ERROR) ?: "ukjent feil"}",
+                                color = Color.White,
+                            )
+                            !app.claude.hasKey -> Text("Legg inn en API-nøkkel i Innstillinger for å kunne tegne figuren på nytt.", color = Color.White)
+                        }
+                        Spacer(Modifier.height(48.dp))
                     }
                 }
             }

@@ -80,7 +80,14 @@ class Paginator(
         }
         fun gap() = if (items.isEmpty()) 0f else spacing
 
-        val blocks = layout.blocks.filter { it.type != BlockType.FOOTNOTE }
+        // En figur uten egen bildetekst får beskrivelsen som tekst under, så man slipper å åpne figuren for å lese den.
+        val blocks = layout.blocks.filter { it.type != BlockType.FOOTNOTE }.let { list ->
+            list.flatMapIndexed { i, b ->
+                val described = b.type == BlockType.FIGURE && b.image != null && !b.description.isNullOrBlank() &&
+                    list.getOrNull(i + 1)?.type != BlockType.CAPTION
+                if (described) listOf(b, b.copy(type = BlockType.CAPTION, text = b.description!!, image = null)) else listOf(b)
+            }
+        }
         for (b in blocks) {
             when (b.type) {
                 BlockType.FIGURE -> {

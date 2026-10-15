@@ -68,7 +68,8 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
   kommer med, brødtekst ikke) og gjøres mer lik originalen: bildetekst som også vises som tekst klippes
   bort, skjevheten måles ut fra tekstlinjene og rettes, lyset jevnes ut, gjennomslag fra baksiden fjernes, og fargene
   rettes som i en skanner (papiret blir hvitt, kontrasten strekkes, litt skarpere). Fargede bokser beskjæres til boksen.
-- **Tegn figuren på nytt**: trykk på en figur i leseren og velg «Tegn på nytt». Claude tegner diagrammer, grafer og
+- Figurer uten egen bildetekst får Claudes beskrivelse som liten tekst under figuren i leseren.
+- **Tegn figuren på nytt**: trykk på en figur i leseren og velg «Tegn på nytt» øverst. Claude tegner diagrammer, grafer og
   enkle tegninger som en ren vektortegning (SVG, gjort om til bilde), og du ser foto og tegning side om side før du
   velger. «Tegn diagrammene på nytt» på bokskjermen gjør det for hele boka (fotografier hoppes over). Fotoet tas vare
   på, så «Bruk fotoet igjen» bytter tilbake. Ca. 50 øre (5 cent) per figur med Sonnet (anslag). Tegningene er til eget bruk.

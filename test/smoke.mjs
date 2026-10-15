@@ -284,6 +284,20 @@ await need(/^Marker område$/, 'originalbildet');
 shot('8-original');
 sh('adb shell input keyevent KEYCODE_BACK');
 assertAlive();
+// Figurvisningen: «Tegn på nytt»/«Bruk fotoet igjen» skal synes på skjermen (lå før under kanten).
+let fig = null;
+for (let k = 0; k < 8 && !fig; k++) {
+  fig = await waitFor((n) => n.desc === 'En tegning av en bokhylle', 1500);
+  if (!fig) { sh(`adb shell input tap ${Math.round(W * 0.9)} ${Math.round(H / 2)}`); await sleep(800); }
+}
+if (!fig) fail('fant ingen figur i leseren');
+tap(fig);
+const figButton = await need(/^(Tegn på nytt|Bruk fotoet igjen)$/, 'knappen i figurvisningen');
+if (figButton.b[3] > H || figButton.b[1] < 0) fail('knappen i figurvisningen er utenfor skjermen: ' + figButton.b.join(','));
+shot('9-figur');
+sh('adb shell input keyevent KEYCODE_BACK');
+await sleep(800);
+assertAlive();
 console.log('Leser OK');
 
 // 7. Eksport/import og sikkerhetskopi (tur-retur på telefonen).
