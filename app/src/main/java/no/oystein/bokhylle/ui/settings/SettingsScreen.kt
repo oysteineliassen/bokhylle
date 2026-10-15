@@ -1,5 +1,9 @@
 package no.oystein.bokhylle.ui.settings
 
+import no.oystein.bokhylle.claude.ExchangeRates
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -98,6 +102,7 @@ fun SettingsScreen(onBack: () -> Unit, onImport: (path: String, undo: Boolean) -
                     Text(formatUsd(total.kostnadUsd), style = MaterialTheme.typography.headlineSmall)
                     Text("${"%,d".format(total.inputTokens)} tokens inn, ${"%,d".format(total.outputTokens)} tokens ut", style = MaterialTheme.typography.bodySmall)
                     Text("Beregnet fra forbruket API-et rapporterer for hvert kall.", style = MaterialTheme.typography.bodySmall)
+                    ExchangeRateRow()
                 }
             }
 
@@ -105,4 +110,32 @@ fun SettingsScreen(onBack: () -> Unit, onImport: (path: String, undo: Boolean) -
             BackupSettings(onImport)
         }
     }
+}
+
+/** Dollarkursen kronebeløpene regnes om med, og når den sist ble hentet fra Norges Bank. */
+@Composable
+private fun ExchangeRateRow() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var rate by remember { mutableStateOf(ExchangeRates.nokPerUsd) }
+    var date by remember { mutableStateOf(ExchangeRates.date) }
+    var busy by remember { mutableStateOf(false) }
+    val nb = java.util.Locale("nb", "NO")
+    Text(
+        if (date != null) "Kurs: %.2f kr per dollar (Norges Bank, %s). Oppdateres daglig.".format(nb, rate, date)
+        else "Kurs: ca. %.1f kr per dollar (fast anslag; hentes fra Norges Bank når telefonen er på nett).".format(nb, rate),
+        style = MaterialTheme.typography.bodySmall,
+    )
+    TextButton(
+        enabled = !busy,
+        onClick = {
+            busy = true
+            scope.launch {
+                val r = ExchangeRates.refresh(context)
+                busy = false
+                if (r != null) { rate = r.nokPerUnit; date = r.date }
+                else android.widget.Toast.makeText(context, "Fikk ikke hentet kursen (nett?)", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        },
+    ) { Text(if (busy) "Henter kurs …" else "Oppdater kursen nå") }
 }

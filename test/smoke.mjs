@@ -242,6 +242,15 @@ if (+afterRevert !== +drawn - 1) fail('«Bruk fotoet igjen» virket ikke: ' + dr
 assertAlive();
 console.log('Tegning OK');
 
+// 5c. Dollarkursen fra Norges Bank (ekte nett; en ekstern tjeneste som er nede, skal ikke stoppe testen).
+sh('adb logcat -c');
+sh(`adb shell am broadcast -n ${PKG}/.TestReceiver -a ${PKG}.TEST_RATE`);
+let rateLine = '';
+for (let i = 0; i < 20 && !rateLine; i++) { await sleep(1500); rateLine = (log().match(/test: kurs .*/) || [''])[0]; }
+console.log('  ' + (rateLine || 'ingen svar fra kurstesten'));
+if (/test: kurs \d/.test(rateLine)) console.log('Kurs OK'); else console.log('ADVARSEL: fikk ikke hentet kursen fra Norges Bank');
+assertAlive();
+
 // 6. Leseren: åpne boka, bla med trykk i høyre tredjedel, åpne menyen i midten.
 sh(`adb shell am force-stop ${PKG}`);
 sh(`adb shell am start -W -n ${PKG}/.MainActivity`);

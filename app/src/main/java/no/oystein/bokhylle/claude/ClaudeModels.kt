@@ -38,13 +38,10 @@ data class ClaudeModel(
     }
 }
 
-/** Omtrentlig dollarkurs for å vise prisene i kroner (API-et fakturerer i USD). */
-const val NOK_PER_USD = 10.5
-
 /** Beløp i kroner (omregnet), med dollar i parentes, f.eks. «53 øre (0,05 USD)». */
 fun formatUsd(amount: Double): String {
     val nb = java.util.Locale("nb", "NO")
-    val nok = amount * NOK_PER_USD
+    val nok = amount * ExchangeRates.nokPerUsd
     val kroner = when {
         nok < 0.01 -> "under 1 øre"
         nok < 1 -> "${(nok * 100).roundToInt()} øre"

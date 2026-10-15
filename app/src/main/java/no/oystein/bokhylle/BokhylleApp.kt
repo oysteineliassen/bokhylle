@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import no.oystein.bokhylle.backup.BackupManager
 import no.oystein.bokhylle.claude.ClaudePollWorker
 import no.oystein.bokhylle.claude.ClaudeService
+import no.oystein.bokhylle.claude.ExchangeRates
 import no.oystein.bokhylle.data.AppDatabase
 import no.oystein.bokhylle.data.BookRepository
 import no.oystein.bokhylle.data.FileStore
@@ -30,6 +31,9 @@ class BokhylleApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Dollarkursen prisene vises med: lagret verdi nå, ny henting fra Norges Bank én gang i døgnet.
+        ExchangeRates.load(this)
+        ExchangeRates.schedule(this)
         // Batcher som ble sendt før appen ble lukket, sjekkes videre.
         appScope.launch { if (db.claude().openJobs().isNotEmpty()) { claude.checkNow(); claude.schedulePoll(ClaudePollWorker.INTERVAL_MINUTES) } }
     }

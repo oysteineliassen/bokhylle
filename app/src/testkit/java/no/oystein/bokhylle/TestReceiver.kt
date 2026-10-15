@@ -35,6 +35,10 @@ class TestReceiver : BroadcastReceiver() {
                     "no.oystein.bokhylle.TEST_CLAUDE" -> testClaude(app, intent.getStringExtra("mode") ?: "batch")
                     "no.oystein.bokhylle.TEST_BACKUP" -> testBackup(app)
                     "no.oystein.bokhylle.TEST_DRAW" -> testDraw(app)
+                    "no.oystein.bokhylle.TEST_RATE" -> {
+                        val r = no.oystein.bokhylle.claude.ExchangeRates.refresh(app)
+                        Log.d(TAG, "test: kurs ${r?.nokPerUnit} dato ${r?.date} format=${no.oystein.bokhylle.claude.formatUsd(0.05)}")
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "test feilet", e)

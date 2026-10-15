@@ -59,7 +59,7 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
 - Modell per bok: **Claude Sonnet 5.5** (standard) eller **Claude Haiku 5.5** (mye billigere, holder for enkle romaner).
 - Hele bøker sendes med **Message Batches API** (halv pris). Statusen sjekkes i bakgrunnen; batcher tar vanligvis
   minutter, men kan ta opptil et døgn. Enkeltsider kan kjøres på nytt med vanlige kall fra leseren.
-- **Kostnadsestimat** vises før sending, i kroner (omregnet med ca. 10,5 kr per dollar) med dollar i parentes. Faktisk forbruk (fra `usage` i API-svaret) logges per bok og vises totalt i
+- **Kostnadsestimat** vises før sending, i kroner med dollar i parentes. Dollarkursen hentes fra Norges Bank én gang i døgnet (Innstillinger viser kursen og datoen; uten nett brukes ca. 10,5). Faktisk forbruk (fra `usage` i API-svaret) logges per bok og vises totalt i
   Innstillinger. Anslag med batch-pris: Sonnet ca. 1 USD per 100 sider, Haiku ca. 0,05 USD per 100 sider.
 - API-nøkkelen lagres kryptert (AES-GCM med nøkkel i Android Keystore) og logges aldri.
 - Ved feil eller uten nett beholdes ML Kit-teksten, og sidene merkes så de kan sendes senere.
