@@ -65,6 +65,18 @@ class LayoutTest {
     }
 
     @Test
+    fun `nummerering og referansebiter er ikke en figur`() {
+        fun l(t: String, top: Float) = OcrLine(t, 0.1f, top, 0.1f + 0.01f * t.length, top + 0.02f)
+        // Referanseliste: tallene i margen og løse doi-biter blir korte ML Kit-blokker.
+        val refs = listOf(l("1", 0.2f), l("2", 0.3f), l("doi:10.1159/000079130.", 0.32f), l("3", 0.4f), l("4", 0.5f),
+            l("(side 194–206)", 0.15f), l("PMCID:PMC7120250.", 0.45f))
+        assertTrue(!LayoutBuilder.looksLikeFigure(refs))
+        assertTrue(!LayoutBuilder.looksLikeFigure(listOf(l("då.2022.", 0.2f), l("06.009.", 0.25f), l("WHO.", 0.3f))))
+        // Etiketter i en illustrasjon (med tall på en akse) er fortsatt en figur.
+        assertTrue(LayoutBuilder.looksLikeFigure(listOf(l("Hjerte", 0.2f), l("Lunge", 0.3f), l("0", 0.4f), l("5", 0.45f), l("10", 0.5f))))
+    }
+
+    @Test
     fun `fotnote nederst`() {
         val lines = page(listOf("Dette er sant.³ Og mer tekst her.")).filter { it.top < 0.5f } +
             line("3 Kilde: Store norske leksikon.", 0.8f, height = 0.015f)

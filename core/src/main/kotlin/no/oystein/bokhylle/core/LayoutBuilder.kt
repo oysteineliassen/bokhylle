@@ -106,7 +106,7 @@ object LayoutBuilder {
         }
         val labelLines = labelBlocks.values.flatten()
         val clusters = groupByProximity(labelLines.map { it.line }, gap = 0.12f).filter { cluster ->
-            cluster.map { it.block }.distinct().size >= 2
+            cluster.map { it.block }.distinct().size >= 2 && looksLikeFigure(cluster)
         }
         for (cluster in clusters) {
             val area = cluster.map { Box(it.left, it.top, it.right, it.bottom) }.reduce(Box::union).pad(0.03f)
@@ -126,6 +126,24 @@ object LayoutBuilder {
         // Leserekkefølge: ovenfra og ned (stabil for blokker uten plassering), fotnoter sist.
         val ordered = blocks.withIndex().sortedWith(compareBy({ it.value.box?.top ?: Float.MAX_VALUE }, { it.index })).map { it.value } + footnotes
         return PageLayout(ordered, source = PageLayout.SOURCE_MLKIT)
+    }
+
+    private val referenceToken = Regex("(?i)\\b(doi|pmid|pmcid|https?|www)\\b")
+    private val word = Regex("\\p{L}{3,}")
+    private val listNumber = Regex("^\\d{1,3}\\.?$")
+
+    /**
+     * Korte tekstbiter i en klynge er bare en figur når de ligner etiketter. Nummereringen i en referanseliste
+     * (1, 2, 3 … nedover i margen) og løse biter av referanser (doi, PMID, årstall) gir også korte ML Kit-blokker,
+     * men er ikke en figur: krever minst to etiketter med ord, og ingen fortløpende nummerering.
+     */
+    internal fun looksLikeFigure(cluster: List<OcrLine>): Boolean {
+        val texts = cluster.sortedBy { it.top }.map { it.text.trim() }
+        val wordy = texts.count { t -> !referenceToken.containsMatchIn(t) && word.containsMatchIn(t) }
+        if (wordy < 2) return false
+        val numbers = texts.filter { listNumber.matches(it) }.map { it.trimEnd('.').toInt() }
+        val consecutive = numbers.zipWithNext().count { (a, b) -> b == a + 1 }
+        return consecutive < 2
     }
 
     /** Lager en figur eller faktaboks av linjene i et område. */
