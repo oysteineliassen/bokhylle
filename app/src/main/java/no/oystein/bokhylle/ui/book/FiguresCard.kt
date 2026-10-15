@@ -70,6 +70,31 @@ fun FiguresCard(book: Book, pages: List<Page>) {
         }
     }
 
+    // .zip-endelse, så filen kan legges ved i en chat (ukjente endelser avvises ofte der).
+    val fileName = remember(book.tittel) {
+        val name = book.tittel.replace(Regex("[^\\p{L}\\p{N} ._-]"), "").trim().ifEmpty { "bok" }
+        "$name ${FigureExchange.FIGURES_EXTENSION}.zip"
+    }
+    suspend fun exportFile(): File? = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = File(context.cacheDir, "del").apply { mkdirs() }
+            File(dir, fileName).also { f -> f.outputStream().use { FigureExchange.export(app, book.id, it) } }
+        }.getOrNull()
+    }
+    val saveAs = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = "Lagrer figurfilen …"
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { FigureExchange.export(app, book.id, it) } != null
+                }.getOrDefault(false)
+            }
+            busy = null
+            Toast.makeText(context, if (ok) "Figurfilen er lagret" else "Kunne ikke lagre figurfilen", Toast.LENGTH_LONG).show()
+        }
+    }
+
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Tegne figurer i en chat", style = MaterialTheme.typography.titleMedium)
@@ -86,15 +111,7 @@ fun FiguresCard(book: Book, pages: List<Page>) {
                     onClick = {
                         busy = "Lager figurfilen …"
                         scope.launch {
-                            val file = withContext(Dispatchers.IO) {
-                                runCatching {
-                                    val dir = File(context.cacheDir, "del").apply { mkdirs() }
-                                    val name = book.tittel.replace(Regex("[^\\p{L}\\p{N} ._-]"), "").trim().ifEmpty { "bok" }
-                                    File(dir, "$name.${FigureExchange.FIGURES_EXTENSION}").also { f ->
-                                        f.outputStream().use { FigureExchange.export(app, book.id, it) }
-                                    }
-                                }.getOrNull()
-                            }
+                            val file = exportFile()
                             busy = null
                             if (file == null) {
                                 Toast.makeText(context, "Kunne ikke lage figurfilen", Toast.LENGTH_LONG).show()
@@ -108,6 +125,11 @@ fun FiguresCard(book: Book, pages: List<Page>) {
                     },
                     modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Eksporter figurer til tegning" },
                 ) { Text("Eksporter figurer til tegning ($count)") }
+                OutlinedButton(
+                    enabled = busy == null,
+                    onClick = { saveAs.launch(fileName) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Lagre figurfilen på telefonen") }
             }
             OutlinedButton(
                 enabled = busy == null,
