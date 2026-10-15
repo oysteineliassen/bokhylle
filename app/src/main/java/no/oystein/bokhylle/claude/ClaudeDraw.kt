@@ -33,9 +33,20 @@ object ClaudeDraw {
 
     fun estimate(model: ClaudeModel, figures: Int) = figures * model.cost(EST_INPUT, EST_OUTPUT, batch = false)
 
-    fun redraw(client: AnthropicClient, model: String, imageBase64: String, description: String?, caption: String?): Result {
+    /**
+     * @param marked bildet er et utsnitt av siden der figuren er markert med en rød ramme (se DrawWorker);
+     *   ellers er det bare figuren.
+     */
+    fun redraw(client: AnthropicClient, model: String, imageBase64: String, description: String?, caption: String?, marked: Boolean = false): Result {
         val hint = buildString {
             append("Tegn denne figuren på nytt som SVG.")
+            if (marked) {
+                append(
+                    "\nBildet viser et utsnitt av boksiden. Den røde rammen viser omtrent hvor figuren er. Ta med alt som " +
+                        "hører til figuren, også det som stikker utenfor rammen (etiketter, piler, strektegning), men ikke " +
+                        "brødtekst, overskrifter over figuren eller bildeteksten. Ikke tegn den røde rammen.",
+                )
+            }
             if (!description.isNullOrBlank()) append("\nBeskrivelse: ").append(description)
             if (!caption.isNullOrBlank()) append("\nBildeteksten (vises under figuren, skal ikke med i tegningen): ").append(caption)
         }

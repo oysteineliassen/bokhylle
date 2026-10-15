@@ -71,6 +71,12 @@ object ImageOps {
         FileOutputStream(file).use { bitmap.compress(format, quality, it) }
     }
 
+    /** Lagrer som JPEG (for bilder som sendes videre). */
+    fun saveJpeg(bitmap: Bitmap, file: File, quality: Int = 90) {
+        file.parentFile?.mkdirs()
+        FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.JPEG, quality, it) }
+    }
+
     /** Skalerer et lagret bilde ned til maks [maxSide] på langsiden (ingenting skjer om det allerede er mindre). */
     fun downscaleFile(path: String, maxSide: Int, target: File): Boolean {
         val bitmap = decode(path) ?: return false

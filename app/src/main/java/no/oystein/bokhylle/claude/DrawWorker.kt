@@ -59,7 +59,11 @@ class DrawWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     private suspend fun draw(f: Figure): Pair<File, File>? {
         val book = app.db.books().get(f.page.bookId) ?: return null
         val model = ClaudeModel.of(book.claudeModell)
-        val r = ClaudeDraw.redraw(app.claude.client(), model.id, ClaudeOcr.encodeImage(f.block.image!!), f.block.description, f.caption)
+        val context = contextImage(f)
+        val r = ClaudeDraw.redraw(
+            app.claude.client(), model.id, context ?: ClaudeOcr.encodeImage(f.block.image!!), f.block.description, f.caption,
+            marked = context != null,
+        )
         app.db.claude().insertUsage(
             ApiUsage(bookId = book.id, modell = model.id, inputTokens = r.inputTokens, outputTokens = r.outputTokens,
                 kostnadUsd = model.cost(r.inputTokens, r.outputTokens, batch = false), batch = false),
@@ -73,6 +77,46 @@ class DrawWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         ImageOps.save(bitmap, image, ImageOps.FIGURE_QUALITY)
         bitmap.recycle()
         return svgFile to image
+    }
+
+    /**
+     * Utsnitt av sidebildet rundt figuren, med figurens område markert med en rød ramme, så Claude ser det som
+     * stikker utenfor (etiketter, piler) og hva som er brødtekst. null når sidebildet ikke finnes lenger.
+     */
+    private fun contextImage(f: Figure): String? {
+        val box = f.block.box ?: return null
+        if (!File(f.page.bildeSti).exists()) return null
+        val page = ImageOps.decode(f.page.bildeSti) ?: return null
+        try {
+            val m = 0.12f
+            val outer = no.oystein.bokhylle.core.Box(
+                (box.left - m).coerceAtLeast(0f), (box.top - m).coerceAtLeast(0f),
+                (box.right + m).coerceAtMost(1f), (box.bottom + m).coerceAtMost(1f),
+            )
+            val cut = ImageOps.crop(page, outer) ?: return null
+            val img = cut.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+            if (img != cut) cut.recycle()
+            val sx = img.width / (outer.width * page.width)
+            val sy = img.height / (outer.height * page.height)
+            val left = (box.left - outer.left) * page.width * sx
+            val top = (box.top - outer.top) * page.height * sy
+            val right = (box.right - outer.left) * page.width * sx
+            val bottom = (box.bottom - outer.top) * page.height * sy
+            android.graphics.Canvas(img).drawRect(
+                left, top, right, bottom,
+                android.graphics.Paint().apply {
+                    color = android.graphics.Color.RED
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeWidth = maxOf(3f, img.width / 300f)
+                },
+            )
+            val file = File(applicationContext.cacheDir, "tegning-utsnitt.jpg")
+            ImageOps.saveJpeg(img, file)
+            img.recycle()
+            return ClaudeOcr.encodeImage(file.path).also { file.delete() }
+        } finally {
+            page.recycle()
+        }
     }
 
     private suspend fun drawOne(pageId: Long, image: String): Result {

@@ -149,7 +149,9 @@ class BookProcessor(private val app: BokhylleApp) {
                     val source = bitmap
                     val crop = source?.let {
                         val skew = no.oystein.bokhylle.core.FigureCleanup.skewDegrees(ocrLines, box, it.width, it.height)
-                        runCatching { ImageOps.figure(it, no.oystein.bokhylle.core.FigureCleanup.trimText(box, texts), skew, paper) }
+                        // Ta med etiketter og strektegning rett utenfor Claudes ramme, men ikke brødtekst eller bildetekst.
+                        val area = no.oystein.bokhylle.core.FigureCleanup.expandFigure(box, ocrLines, texts)
+                        runCatching { ImageOps.figure(it, no.oystein.bokhylle.core.FigureCleanup.trimText(area, texts), skew, paper) }
                             .onFailure { e -> Log.w(TAG, "figur på side ${page.id}", e) }
                             .getOrNull()
                     }
@@ -175,7 +177,7 @@ class BookProcessor(private val app: BokhylleApp) {
         private const val TAG = "Bokhylle"
 
         /** Øk når utklippingen av figurer forbedres, så eksisterende figurer lages på nytt. */
-        private const val FIGURE_VERSION = 3
+        private const val FIGURE_VERSION = 4
 
         /** Sorteringen og flaggene for sidene slik de er nå (brukes også av kontrollskjermen for «manglende sider»). */
         fun analyze(pages: List<Page>): OrderResult = PageOrdering.order(

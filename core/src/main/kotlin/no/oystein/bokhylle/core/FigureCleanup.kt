@@ -71,10 +71,11 @@ object FigureCleanup {
     }
 
     /**
-     * Jevner ut lyset: et foto er ofte mørkere i den ene kanten. Bakgrunnen måles i et grovt rutenett
-     * (median per rute, så tynne streker ikke teller), glattes, og hver piksel skaleres så bakgrunnen får
-     * samme farge over hele figuren. Gjøres bare når figuren mest er bakgrunn med streker og tekst
-     * (tegninger, diagrammer, faktabokser), ikke på fotografier.
+     * Jevner ut lyset: et foto er ofte mørkere i den ene kanten. Bakgrunnen (papiret, eller bakgrunnen i en
+     * faktaboks) måles i et grovt rutenett (median per rute). Bare ruter med bakgrunnsfargen brukes; ruter
+     * dekket av en fargeflate (f.eks. en stor sol) får lyset fra bakgrunnen rundt, så flaten beholder fargen.
+     * Hver piksel lysnes eller mørknes like mye i alle kanaler (ingen fargestikk). Gjøres ikke når det ikke
+     * finnes én tydelig bakgrunn (fotografier).
      * @return true hvis lyset ble jevnet ut.
      */
     fun flattenIllumination(px: IntArray, width: Int, height: Int): Boolean {
@@ -82,32 +83,66 @@ object FigureCleanup {
         val cell = maxOf(16, maxOf(width, height) / 24)
         val gw = (width + cell - 1) / cell
         val gh = (height + cell - 1) / cell
-        val bg = Array(3) { FloatArray(gw * gh) }
+        val n = gw * gh
+        val bg = Array(3) { FloatArray(n) }
         val buf = Array(3) { IntArray(cell * cell) }
         for (gy in 0 until gh) for (gx in 0 until gw) {
-            var n = 0
+            var k = 0
             for (y in gy * cell until minOf(height, (gy + 1) * cell) step 2) for (x in gx * cell until minOf(width, (gx + 1) * cell) step 2) {
                 val p = px[y * width + x]
-                buf[0][n] = (p shr 16) and 0xFF; buf[1][n] = (p shr 8) and 0xFF; buf[2][n] = p and 0xFF
-                n++
+                buf[0][k] = (p shr 16) and 0xFF; buf[1][k] = (p shr 8) and 0xFF; buf[2][k] = p and 0xFF
+                k++
             }
-            for (c in 0..2) {
-                val sorted = buf[c].copyOf(n).also { it.sort() }
-                bg[c][gy * gw + gx] = sorted[n / 2].toFloat()
+            for (c in 0..2) bg[c][gy * gw + gx] = buf[c].copyOf(k).also { it.sort() }[k / 2].toFloat()
+        }
+        fun lum(i: Int) = bg[0][i] * 0.299f + bg[1][i] * 0.587f + bg[2][i] * 0.114f
+        // Bakgrunnsfargen: den vanligste rutefargen, sammenlignet uavhengig av lysstyrke (kromatisitet + grov lys).
+        fun chroma(i: Int): Int {
+            val l = lum(i).coerceAtLeast(1f)
+            val cr = (bg[0][i] / l * 8).roundToInt().coerceIn(0, 31)
+            val cb = (bg[2][i] / l * 8).roundToInt().coerceIn(0, 31)
+            return (cr shl 5) or cb
+        }
+        val mode = (0 until n).groupingBy(::chroma).eachCount().maxByOrNull { it.value }?.key ?: return false
+        val isBg = BooleanArray(n) { i -> abs(chroma(i) - mode) <= 1 || abs((chroma(i) shr 5) - (mode shr 5)) + abs((chroma(i) and 31) - (mode and 31)) <= 1 }
+        // Også lysstyrken må ligge i bakgrunnens område (en mørk flate med samme fargetone er ikke bakgrunn).
+        val bgLums = (0 until n).filter { isBg[it] }.map(::lum).sorted()
+        if (bgLums.size < n * 0.4f) return false
+        val medianLum = bgLums[bgLums.size / 2]
+        for (i in 0 until n) if (isBg[i] && lum(i) < medianLum * 0.55f) isBg[i] = false
+        val target = bgLums[(bgLums.size * 9 / 10).coerceAtMost(bgLums.size - 1)]
+        // Ruter uten bakgrunn fylles fra nabo-rutene med bakgrunn, utover til alt er fylt.
+        val filled = isBg.copyOf()
+        var remaining = filled.count { !it }
+        var guard = gw + gh
+        while (remaining > 0 && guard-- > 0) {
+            val next = filled.copyOf()
+            for (gy in 0 until gh) for (gx in 0 until gw) {
+                val i = gy * gw + gx
+                if (filled[i]) continue
+                var sum = FloatArray(3); var k = 0
+                for (dy in -1..1) for (dx in -1..1) {
+                    val yy = gy + dy; val xx = gx + dx
+                    if (yy !in 0 until gh || xx !in 0 until gw) continue
+                    val j = yy * gw + xx
+                    if (!filled[j]) continue
+                    for (c in 0..2) sum[c] += bg[c][j]
+                    k++
+                }
+                if (k > 0) { for (c in 0..2) bg[c][i] = sum[c] / k; next[i] = true; remaining-- }
             }
+            System.arraycopy(next, 0, filled, 0, n)
         }
         // Glatt rutenettet så overgangene blir myke (3×3).
-        repeat(1) {
-            for (c in 0..2) {
-                val src = bg[c].copyOf()
-                for (gy in 0 until gh) for (gx in 0 until gw) {
-                    var sum = 0f; var k = 0
-                    for (dy in -1..1) for (dx in -1..1) {
-                        val yy = gy + dy; val xx = gx + dx
-                        if (yy in 0 until gh && xx in 0 until gw) { sum += src[yy * gw + xx]; k++ }
-                    }
-                    bg[c][gy * gw + gx] = sum / k
+        for (c in 0..2) {
+            val src = bg[c].copyOf()
+            for (gy in 0 until gh) for (gx in 0 until gw) {
+                var sum = 0f; var k = 0
+                for (dy in -1..1) for (dx in -1..1) {
+                    val yy = gy + dy; val xx = gx + dx
+                    if (yy in 0 until gh && xx in 0 until gw) { sum += src[yy * gw + xx]; k++ }
                 }
+                bg[c][gy * gw + gx] = sum / k
             }
         }
         fun at(c: Int, x: Int, y: Int): Float {
@@ -123,35 +158,68 @@ object FigureCleanup {
             val bot = g[y1 * gw + x0] * (1 - tx) + g[y1 * gw + x1] * tx
             return (top * (1 - ty) + bot * ty).coerceAtLeast(1f)
         }
-        // Mest bakgrunn? Ellers er det trolig et fotografi, og da røres det ikke.
-        var near = 0; var total = 0
-        for (y in 0 until height step 3) for (x in 0 until width step 3) {
-            val p = px[y * width + x]
-            val d = abs(((p shr 16) and 0xFF) - at(0, x, y)) + abs(((p shr 8) and 0xFF) - at(1, x, y)) + abs((p and 0xFF) - at(2, x, y))
-            if (d < 45f) near++
-            total++
-        }
-        if (near < total * 0.6f) return false
-        // Målet: den lyseste fjerdedelen av bakgrunnen (det godt opplyste området).
-        val target = FloatArray(3) { c -> bg[c].sorted()[(bg[c].size * 3 / 4).coerceAtMost(bg[c].size - 1)] }
         for (y in 0 until height) for (x in 0 until width) {
             val i = y * width + x
             val p = px[i]
-            var r = (((p shr 16) and 0xFF) * target[0] / at(0, x, y)).roundToInt().coerceIn(0, 255)
-            var g = (((p shr 8) and 0xFF) * target[1] / at(1, x, y)).roundToInt().coerceIn(0, 255)
-            var b = ((p and 0xFF) * target[2] / at(2, x, y)).roundToInt().coerceIn(0, 255)
+            val br = at(0, x, y); val bgc = at(1, x, y); val bb = at(2, x, y)
+            // Samme forsterkning i alle kanaler: lyset jevnes ut uten at fargene forskyves.
+            val gain = (target / (br * 0.299f + bgc * 0.587f + bb * 0.114f)).coerceIn(0.8f, 2f)
+            var r = (((p shr 16) and 0xFF) * gain).coerceIn(0f, 255f)
+            var g = (((p shr 8) and 0xFF) * gain).coerceIn(0f, 255f)
+            var b = ((p and 0xFF) * gain).coerceIn(0f, 255f)
             // Bakgrunnsrens som i en skanner: svake nyanser nær bakgrunnen (gjennomslag fra baksiden,
             // papirstruktur) blir ren bakgrunn. Tydelige streker og flater er langt unna og beholdes.
-            val d = abs(r - target[0]) + abs(g - target[1]) + abs(b - target[2])
+            val tr = (br * gain).coerceAtMost(255f); val tg = (bgc * gain).coerceAtMost(255f); val tb = (bb * gain).coerceAtMost(255f)
+            val d = abs(r - tr) + abs(g - tg) + abs(b - tb)
             if (d < CLEAN_BG) {
                 val t = (d / CLEAN_BG) * (d / CLEAN_BG)
-                r = (target[0] + (r - target[0]) * t).roundToInt()
-                g = (target[1] + (g - target[1]) * t).roundToInt()
-                b = (target[2] + (b - target[2]) * t).roundToInt()
+                r = tr + (r - tr) * t; g = tg + (g - tg) * t; b = tb + (b - tb) * t
             }
-            px[i] = (p and (0xFF shl 24)) or (r shl 16) or (g shl 8) or b
+            px[i] = (p and (0xFF shl 24)) or (r.roundToInt().coerceIn(0, 255) shl 16) or (g.roundToInt().coerceIn(0, 255) shl 8) or b.roundToInt().coerceIn(0, 255)
         }
         return true
+    }
+
+    /**
+     * Utvider figurens område så det som hører til figuren kommer med: korte tekstlinjer rett utenfor
+     * (etiketter, akser, piler med tekst) som ikke er en del av brødteksten, og litt luft på hver side
+     * (strektegning som stikker ut). Utvidelsen stopper ved tekstblokker, så brødtekst ikke kommer med.
+     */
+    fun expandFigure(figure: Box, ocrLines: List<OcrLine>, texts: List<Box>, pad: Float = 0.025f, reach: Float = 0.05f): Box {
+        fun overlaps(a: Box, b: Box) = minOf(a.right, b.right) > maxOf(a.left, b.left) && minOf(a.bottom, b.bottom) > maxOf(a.top, b.top)
+        fun area(b: Box) = maxOf(0f, b.width) * maxOf(0f, b.height)
+        fun overlapShare(line: Box, t: Box): Float {
+            val w = minOf(line.right, t.right) - maxOf(line.left, t.left)
+            val h = minOf(line.bottom, t.bottom) - maxOf(line.top, t.top)
+            return if (w <= 0f || h <= 0f) 0f else w * h / area(line).coerceAtLeast(1e-6f)
+        }
+        val others = texts.filter { !overlaps(it, figure) || overlapShare(it, figure) < 0.5f }
+        var box = figure
+        // Etiketter: OCR-linjer nær figuren som ikke hører til noen tekstblokk.
+        val labels = ocrLines.map { Box(it.left, it.top, it.right, it.bottom) }
+            .filter { l -> others.none { overlapShare(l, it) > 0.3f } }
+        var changed = true
+        var rounds = 0
+        while (changed && rounds++ < 6) {
+            changed = false
+            for (l in labels) {
+                if (overlaps(l, box)) continue
+                val gapX = maxOf(0f, maxOf(box.left - l.right, l.left - box.right))
+                val gapY = maxOf(0f, maxOf(box.top - l.bottom, l.top - box.bottom))
+                if (gapX <= reach && gapY <= reach) {
+                    val grown = box.union(l)
+                    // Aldri inn over en tekstblokk.
+                    if (others.none { overlaps(grown, it) && !overlaps(box, it) }) { box = grown; changed = true }
+                }
+            }
+        }
+        // Litt luft på hver side, men ikke inn i tekst.
+        fun clampSide(candidate: Box): Box = if (others.any { overlaps(candidate, it) && !overlaps(box, it) }) box else candidate
+        box = clampSide(box.copy(left = (box.left - pad).coerceAtLeast(0f)))
+        box = clampSide(box.copy(right = (box.right + pad).coerceAtMost(1f)))
+        box = clampSide(box.copy(top = (box.top - pad).coerceAtLeast(0f)))
+        box = clampSide(box.copy(bottom = (box.bottom + pad).coerceAtMost(1f)))
+        return box
     }
 
     /**
@@ -214,6 +282,11 @@ object FigureCleanup {
         val paperRgb = intArrayOf((paper shr 16) and 0xFF, (paper shr 8) and 0xFF, paper and 0xFF)
         // Bakgrunn som ligner papiret: vanlig figur, ingen boks å beskjære til.
         if (dist(0xFF shl 24 or (bg[0] shl 16) or (bg[1] shl 8) or bg[2], paperRgb) < 60) return full
+        // En farget boks dekker mesteparten av figuren. En fargeflate midt i en tegning (f.eks. en sol) gjør
+        // ikke det, og da skal ingenting beskjæres bort (etiketter og strektegning rundt ville forsvunnet).
+        var covered = 0; var sampled = 0
+        for (i in px.indices step 7) { if (dist(px[i], bg) < 70) covered++; sampled++ }
+        if (covered < sampled * 0.55f) return full
         // Papir rundt boksen (eller tomme hjørner): lyst og nesten uten farge, eller nær papirfargen.
         fun isPaper(p: Int): Boolean {
             val r = (p shr 16) and 0xFF; val g = (p shr 8) and 0xFF; val b = p and 0xFF

@@ -138,4 +138,52 @@ class FigureCleanupTest {
         val g = FigureCleanup.einkGray(px)
         assertTrue(g[20 * w + 50] >= 245, "bakgrunn ${g[20 * w + 50]}")
     }
+
+    @Test
+    fun `stor fargeflate beholder fargen og papiret får ikke fargestikk`() {
+        val w = 160; val h = 120
+        // Papir som blir mørkere mot høyre, med en stor oransje sirkel i midten (som sola i boka).
+        val px = IntArray(w * h) { i ->
+            val x = i % w; val y = i / w
+            val f = 1f - 0.3f * x / w
+            val inDisc = (x - 80) * (x - 80) + (y - 60) * (y - 60) < 45 * 45
+            if (inDisc) rgb((235 * f).toInt(), (170 * f).toInt(), (70 * f).toInt())
+            else rgb((240 * f).toInt(), (238 * f).toInt(), (232 * f).toInt())
+        }
+        assertTrue(FigureCleanup.flattenIllumination(px, w, h))
+        val center = px[60 * w + 80]
+        val r = (center shr 16) and 0xFF; val g = (center shr 8) and 0xFF; val b = center and 0xFF
+        assertTrue(r - b > 100 && r > 180, "sola skal fortsatt være oransje: $r,$g,$b")
+        val paperL = px[10 * w + 5]; val paperR = px[10 * w + w - 6]
+        fun spread(p: Int) = maxOf((p shr 16) and 0xFF, (p shr 8) and 0xFF, p and 0xFF) - minOf((p shr 16) and 0xFF, (p shr 8) and 0xFF, p and 0xFF)
+        assertTrue(spread(paperL) < 15 && spread(paperR) < 15, "papiret har fått fargestikk")
+        assertTrue(kotlin.math.abs(((paperL shr 16) and 0xFF) - ((paperR shr 16) and 0xFF)) < 15, "lyset er ikke jevnet ut")
+    }
+
+    @Test
+    fun `etiketter rett over figuren kommer med, brødtekst ikke`() {
+        val figure = Box(0.2f, 0.3f, 0.8f, 0.6f)
+        val label = OcrLine("UVB (5 % av total UV)", 0.4f, 0.25f, 0.65f, 0.28f)
+        val body = Box(0.1f, 0.65f, 0.9f, 0.9f)
+        val bodyLine = OcrLine("brødtekst", 0.1f, 0.65f, 0.9f, 0.68f)
+        val heading = Box(0.25f, 0.18f, 0.75f, 0.22f)
+        val headingLine = OcrLine("Solenergien som når jorden", 0.25f, 0.18f, 0.75f, 0.22f)
+        val out = FigureCleanup.expandFigure(figure, listOf(label, bodyLine, headingLine), listOf(body, heading))
+        assertTrue(out.top <= label.top, "etiketten kom ikke med: $out")
+        assertTrue(out.top > heading.bottom - 0.001f, "overskriften kom med: $out")
+        assertTrue(out.bottom < body.top, "brødteksten kom med: $out")
+        assertTrue(out.left < figure.left && out.right > figure.right, "ingen luft på sidene: $out")
+    }
+
+    @Test
+    fun `fargeflate midt i en tegning gir ingen beskjæring`() {
+        val white = rgb(235, 233, 230)
+        val w = 100; val h = 100
+        // Oransje sirkel i midten, hvitt papir rundt (der etiketter og strektegning står).
+        val px = IntArray(w * h) { i ->
+            val x = i % w; val y = i / w
+            if ((x - 50) * (x - 50) + (y - 50) * (y - 50) < 30 * 30) rgb(235, 170, 70) else white
+        }
+        assertEquals(listOf(0, 0, w, h), FigureCleanup.backgroundBounds(px, w, h, white).toList())
+    }
 }

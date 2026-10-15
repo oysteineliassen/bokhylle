@@ -64,7 +64,8 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
 - API-nøkkelen lagres kryptert (AES-GCM med nøkkel i Android Keystore) og logges aldri.
 - Ved feil eller uten nett beholdes ML Kit-teksten, og sidene merkes så de kan sendes senere.
 - Statusen på batcher sjekkes hvert 3. minutt, hvert minutt mens bokskjermen er åpen, og når appen startes.
-- **Figurer** klippes ut fra sidebildet og gjøres mer lik originalen: bildetekst som også vises som tekst klippes
+- **Figurer** klippes ut fra sidebildet med litt luft rundt (etiketter og strektegning rett utenfor Claudes ramme
+  kommer med, brødtekst ikke) og gjøres mer lik originalen: bildetekst som også vises som tekst klippes
   bort, skjevheten måles ut fra tekstlinjene og rettes, lyset jevnes ut, gjennomslag fra baksiden fjernes, og fargene
   rettes som i en skanner (papiret blir hvitt, kontrasten strekkes, litt skarpere). Fargede bokser beskjæres til boksen.
 - **Tegn figuren på nytt**: trykk på en figur i leseren og velg «Tegn på nytt». Claude tegner diagrammer, grafer og
