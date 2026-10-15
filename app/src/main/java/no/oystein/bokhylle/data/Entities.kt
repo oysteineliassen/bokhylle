@@ -20,7 +20,7 @@ data class Book(
     /** Id-en til siden som sist ble lest (følger siden selv om rekkefølgen endres). */
     val sistLestSide: Long? = null,
     /** Claude-modellen som brukes for denne boka (se ClaudeModels). */
-    val claudeModell: String = "claude-sonnet-5-5",
+    val claudeModell: String = "auto",
     /** Fast id på tvers av telefoner, brukt ved eksport/import for å kjenne igjen samme bok. */
     val uuid: String = java.util.UUID.randomUUID().toString(),
     /** Brukeren har kontrollert teksten; sidebildene er skalert ned og originalene slettet. */

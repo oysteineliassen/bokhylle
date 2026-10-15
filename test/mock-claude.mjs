@@ -77,8 +77,11 @@ const server = http.createServer((req, res) => {
           || r.params.output_config?.format?.type !== 'json_schema');
         if (bad) return send(res, 400, { type: 'error', error: { type: 'invalid_request_error', message: 'mangler bilde eller skjema' } });
         const id = `msgbatch_test_${calls.batchCreate}`;
-        batches.set(id, { ids: body.requests.map((r) => r.custom_id), model: body.requests[0].params.model, polls: 0 });
-        console.log(`mock: batch ${id} med ${body.requests.length} sider (${body.requests[0].params.model})`);
+        const models = Object.fromEntries(body.requests.map((r) => [r.custom_id, r.params.model]));
+        batches.set(id, { ids: body.requests.map((r) => r.custom_id), models, polls: 0 });
+        calls.models = calls.models ?? {};
+        for (const m of Object.values(models)) calls.models[m] = (calls.models[m] ?? 0) + 1;
+        console.log(`mock: batch ${id} med ${body.requests.length} sider (${JSON.stringify(calls.models)})`);
         const out = batchObject(id);
         batches.get(id).created = true;
         return send(res, 200, out);
@@ -94,7 +97,7 @@ const server = http.createServer((req, res) => {
       if (req.method === 'GET' && m && batches.has(m[1])) {
         calls.results++;
         const b = batches.get(m[1]);
-        const lines = b.ids.map((id) => JSON.stringify({ custom_id: id, result: { type: 'succeeded', message: message(id, b.model) } }));
+        const lines = b.ids.map((id) => JSON.stringify({ custom_id: id, result: { type: 'succeeded', message: message(id, b.models[id]) } }));
         return send(res, 200, lines.join('\n') + '\n', 'application/binary');
       }
       if (req.method === 'POST' && url === '/v1/messages') {

@@ -58,7 +58,8 @@ class DrawWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     /** Tegner én figur. null = ikke et diagram (fotoet beholdes). */
     private suspend fun draw(f: Figure): Pair<File, File>? {
         val book = app.db.books().get(f.page.bookId) ?: return null
-        val model = ClaudeModel.of(book.claudeModell)
+        // Figurer: «Auto» betyr den sterke modellen.
+        val model = ClaudeModel.of(book.claudeModell).let { if (it.isAuto) ClaudeModel.SONNET else it }
         val context = contextImage(f)
         val r = ClaudeDraw.redraw(
             app.claude.client(), model.id, context ?: ClaudeOcr.encodeImage(f.block.image!!), f.block.description, f.caption,

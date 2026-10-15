@@ -31,7 +31,7 @@ class ClaudeSubmitWorker(context: Context, params: WorkerParameters) : Coroutine
         val bookId = inputData.getLong(KEY_BOOK, -1)
         val ids = inputData.getString(KEY_PAGES).orEmpty().split(',').mapNotNull { it.toLongOrNull() }
         val book = app.db.books().get(bookId) ?: return@withContext Result.success()
-        val model = ClaudeModel.of(book.claudeModell).id
+        val choice = ClaudeModel.of(book.claudeModell)
         // Sider som allerede ligger i en batch som venter, sendes ikke på nytt (ved nytt forsøk etter feil).
         val waiting = app.db.claude().openJobs().flatMap { j -> j.sideIder.split(',').mapNotNull { it.toLongOrNull() } }.toSet()
         val pages = ids.filter { it !in waiting }.mapNotNull { app.db.pages().get(it) }.filter { it.status == Page.STATUS_FERDIG }
@@ -40,10 +40,13 @@ class ClaudeSubmitWorker(context: Context, params: WorkerParameters) : Coroutine
             val client = app.claude.client()
             for (chunk in pages.chunked(CHUNK)) {
                 val params = BatchCreateParams.builder()
-                chunk.forEach { p -> params.addRequest(ClaudeOcr.batchRequest(p.id, model, ClaudeOcr.encodeImage(p.bildeSti))) }
+                // Ved «Auto» kan én batch blande modeller (hver forespørsel har sin egen).
+                val models = chunk.associate { p -> p.id to choice.forPage(p) }
+                chunk.forEach { p -> params.addRequest(ClaudeOcr.batchRequest(p.id, models.getValue(p.id).id, ClaudeOcr.encodeImage(p.bildeSti))) }
                 val batch = client.messages().batches().create(params.build())
-                app.db.claude().insertJob(ClaudeJob(bookId = bookId, batchId = batch.id(), modell = model, sideIder = chunk.joinToString(",") { it.id.toString() }))
-                Log.d(TAG, "claude: batch ${batch.id()} sendt med ${chunk.size} sider")
+                app.db.claude().insertJob(ClaudeJob(bookId = bookId, batchId = batch.id(), modell = choice.id, sideIder = chunk.joinToString(",") { it.id.toString() }))
+                Log.d(TAG, "claude: batch ${batch.id()} sendt med ${chunk.size} sider (" +
+                    models.values.groupingBy { it.name }.eachCount().entries.joinToString { "${it.key} ${it.value}" } + ")")
             }
             app.claude.schedulePoll()
             Result.success()
@@ -100,9 +103,11 @@ class ClaudePollWorker(context: Context, params: WorkerParameters) : CoroutineWo
                     try {
                         val r = ClaudeOcr.parse(message)
                         app.db.pages().setClaudeResult(pageId, r.json)
+                        // Ved «Auto» er batchen blandet: kostnaden regnes etter modellen som svarte.
+                        val used = ClaudeModel.fromApi(message.model().asString()) ?: model
                         app.db.claude().insertUsage(
-                            ApiUsage(bookId = job.bookId, modell = model.id, inputTokens = r.inputTokens, outputTokens = r.outputTokens,
-                                kostnadUsd = model.cost(r.inputTokens, r.outputTokens, batch = true), batch = true),
+                            ApiUsage(bookId = job.bookId, modell = used.id, inputTokens = r.inputTokens, outputTokens = r.outputTokens,
+                                kostnadUsd = used.cost(r.inputTokens, r.outputTokens, batch = true), batch = true),
                         )
                         ok += pageId
                     } catch (e: Exception) {
@@ -140,7 +145,7 @@ class ClaudePageWorker(context: Context, params: WorkerParameters) : CoroutineWo
         val app = applicationContext.app
         val page = app.db.pages().get(inputData.getLong(KEY_PAGE, -1)) ?: return@withContext Result.success()
         val book = app.db.books().get(page.bookId) ?: return@withContext Result.success()
-        val model = ClaudeModel.of(book.claudeModell)
+        val model = ClaudeModel.of(book.claudeModell).forPage(page)
         try {
             val r = ClaudeOcr.analyzePage(app.claude.client(), model.id, ClaudeOcr.encodeImage(page.bildeSti))
             app.db.pages().setClaudeResult(page.id, r.json)

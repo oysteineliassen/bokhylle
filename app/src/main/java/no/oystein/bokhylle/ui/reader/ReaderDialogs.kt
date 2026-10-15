@@ -166,7 +166,7 @@ fun FigureDialog(path: String, description: String?, pageId: Long?, modelId: Str
                                 onClick = { work = DrawWorker.one(context, pageId, path) },
                                 modifier = Modifier.semantics { contentDescription = "Tegn på nytt" },
                             ) {
-                                Text("Tegn på nytt (ca. ${formatUsd(ClaudeDraw.estimate(ClaudeModel.of(modelId), 1))})", color = Color.White)
+                                Text("Tegn på nytt (ca. ${formatUsd(ClaudeDraw.estimate(ClaudeModel.of(modelId).let { if (it.isAuto) ClaudeModel.SONNET else it }, 1))})", color = Color.White)
                             }
                         }
                     }

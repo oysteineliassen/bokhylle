@@ -1,5 +1,7 @@
 package no.oystein.bokhylle.ui.book
 
+import no.oystein.bokhylle.claude.estimate
+import no.oystein.bokhylle.claude.forPage
 import no.oystein.bokhylle.claude.DrawWorker
 import no.oystein.bokhylle.claude.ClaudeDraw
 import kotlinx.coroutines.flow.map
@@ -94,7 +96,7 @@ fun ClaudeCard(book: Book, pages: List<Page>, onOpenSettings: () -> Unit) {
                 Text("$failed sider kunne ikke analyseres (feil eller ikke nett) og bruker teksten fra telefonen.", style = MaterialTheme.typography.bodySmall)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ClaudeModel.ALL.forEach { m ->
+                ClaudeModel.CHOICES.forEach { m ->
                     FilterChip(
                         selected = m.id == model.id,
                         onClick = { scope.launch { app.repo.updateBook(book.copy(claudeModell = m.id)) } },
@@ -122,7 +124,14 @@ fun ClaudeCard(book: Book, pages: List<Page>, onOpenSettings: () -> Unit) {
                         Text(
                             "Hver gang du legger inn sider, sendes de til Claude som egen batch. Sidene du allerede har lagt inn, " +
                                 "kan leses mens resten mangler. Anslått kostnad med ${model.name}: " +
-                                "${formatUsd(model.estimate(1, batch = true))} per side (${formatUsd(model.estimate(100, batch = true))} per 100 sider).",
+                                (
+                                    if (model.isAuto) {
+                                        "${formatUsd(ClaudeModel.HAIKU.estimate(1, batch = true))} per tekstside, " +
+                                            "${formatUsd(ClaudeModel.SONNET.estimate(1, batch = true))} per side med figurer o.l."
+                                    } else {
+                                        "${formatUsd(model.estimate(1, batch = true))} per side (${formatUsd(model.estimate(100, batch = true))} per 100 sider)."
+                                    }
+                                    ),
                         )
                     },
                     confirmButton = {
@@ -149,7 +158,7 @@ fun ClaudeCard(book: Book, pages: List<Page>, onOpenSettings: () -> Unit) {
                     Text("Analyser hele boka på nytt")
                 }
             }
-            DrawFiguresRow(book, pages, model)
+            DrawFiguresRow(book, pages, if (model.isAuto) ClaudeModel.SONNET else model)
             if (usage.kostnadUsd > 0) {
                 Text("Brukt på denne boka: ${formatUsd(usage.kostnadUsd)}", style = MaterialTheme.typography.bodySmall)
             }
@@ -162,9 +171,13 @@ fun ClaudeCard(book: Book, pages: List<Page>, onOpenSettings: () -> Unit) {
             title = { Text("Sende ${list.size} sider til Claude?") },
             text = {
                 Text(
-                    "Modell: ${model.name}\n" +
-                        "Anslått kostnad: ca. ${formatUsd(model.estimate(list.size, batch = true))} " +
-                        "(batch med halv pris; ${formatUsd(model.estimate(1, batch = true))} per side).\n\n" +
+                    (
+                        if (model.isAuto) {
+                            val strong = list.count { model.forPage(it) == ClaudeModel.SONNET }
+                            "Modell: Auto – $strong sider med figurer, faktabokser o.l. får Sonnet, ${list.size - strong} tekstsider får Haiku.\n"
+                        } else "Modell: ${model.name}\n"
+                        ) +
+                        "Anslått kostnad: ca. ${formatUsd(model.estimate(list, batch = true))} (batch med halv pris).\n\n" +
                         "Sidebildene sendes til Anthropic. Det faktiske forbruket vises etterpå her og i Innstillinger.",
                 )
             },

@@ -214,6 +214,10 @@ if (!/Visste du\?/.test(lay)) fail('faktaboksen mangler: ' + lay);
 if (!(claudeRep.usage.usd > 0)) fail('forbruket ble ikke logget: ' + JSON.stringify(claudeRep.usage));
 const numbers2 = claudeRep.pages.map((p) => p.number).filter(Boolean);
 if (numbers2.length < 7) fail('sidetallene forsvant etter Claude: ' + numbers2.join(','));
+// Testboka bruker «Auto»: siden med faktaboks skal få Sonnet, rene tekstsider Haiku (i samme batch).
+const kall = await (await fetch('http://127.0.0.1:8089/kall')).json();
+console.log('  modeller i batchen: ' + JSON.stringify(kall.models));
+if (!kall.models?.['claude-sonnet-5-5'] || !kall.models?.['claude-haiku-5-5']) fail('«Auto» valgte ikke både Sonnet og Haiku: ' + JSON.stringify(kall.models));
 const usdBatch = claudeRep.usage.usd;
 claudeCmd('single');
 let single = false;

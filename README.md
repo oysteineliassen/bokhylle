@@ -56,7 +56,8 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
   (`heading`, `paragraph`, `box`, `figure` med bbox og beskrivelse, `caption`, `footnote`), sidetall og løpende
   topp-/bunntekst for seg, fotnotereferanser som `[^n]`, og om avsnitt fortsetter over sideskift. Svaret lagres i
   `blocksJson`.
-- Modell per bok: **Claude Sonnet 5.5** (standard) eller **Claude Haiku 5.5** (mye billigere, holder for enkle romaner).
+- Modell per bok: **Auto** (standard for nye bøker: Haiku på rene tekstsider, Sonnet på sider med figurer, faktabokser,
+  fotnoter eller bilder, valgt ut fra det telefonen allerede har lest), **Claude Sonnet 5.5** eller **Claude Haiku 5.5**.
 - Hele bøker sendes med **Message Batches API** (halv pris). Statusen sjekkes i bakgrunnen; batcher tar vanligvis
   minutter, men kan ta opptil et døgn. Enkeltsider kan kjøres på nytt med vanlige kall fra leseren.
 - **Kostnadsestimat** vises før sending, i kroner med dollar i parentes. Dollarkursen hentes fra Norges Bank én gang i døgnet (Innstillinger viser kursen og datoen; uten nett brukes ca. 10,5). Faktisk forbruk (fra `usage` i API-svaret) logges per bok og vises totalt i

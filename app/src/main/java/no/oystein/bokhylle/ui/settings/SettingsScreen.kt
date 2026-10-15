@@ -94,6 +94,10 @@ fun SettingsScreen(onBack: () -> Unit, onImport: (path: String, undo: Boolean) -
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            Text(
+                "Auto: ${ClaudeModel.AUTO.description}. Prisen havner mellom de to, etter hvor mange sider som har figurer o.l.",
+                style = MaterialTheme.typography.bodySmall,
+            )
             Text("Modellen velges per bok på bokskjermen. Standard er ${ClaudeModel.DEFAULT.name}.", style = MaterialTheme.typography.bodySmall)
 
             Card(Modifier.fillMaxWidth()) {
