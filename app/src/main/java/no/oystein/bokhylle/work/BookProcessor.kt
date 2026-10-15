@@ -121,6 +121,10 @@ class BookProcessor(private val app: BokhylleApp) {
         val drawings = PageLayout.decode(page.layoutJson)?.blocks.orEmpty()
             .filter { b -> b.box != null && PageImages.isDrawing(b.image) && File(b.image!!).exists() }
             .associate { b -> legacyKey(b.box!!) to b }
+        // Tegninger lagt til side (brukeren valgte fotoet igjen) følger figuren, så de kan tas i bruk igjen.
+        val parked = PageLayout.decode(page.layoutJson)?.blocks.orEmpty()
+            .filter { b -> b.box != null && b.drawing != null && File(b.drawing!!).exists() }
+            .associate { b -> legacyKey(b.box!!) to b.drawing!! }
         val legacy = previousBlocks.associate { (box, img) -> legacyKey(box) to img }
         val old = PageImages.figurePaths(page).toSet()
         val keep = mutableSetOf<String>()
@@ -129,9 +133,10 @@ class BookProcessor(private val app: BokhylleApp) {
         var bitmap: Bitmap? = null
         var paper = 0
         try {
-            val blocks = layout.blocks.mapIndexed { i, b ->
-                val box = b.box
-                if (b.type != BlockType.FIGURE || box == null) return@mapIndexed b
+            val blocks = layout.blocks.mapIndexed { i, b0 ->
+                val box = b0.box
+                if (b0.type != BlockType.FIGURE || box == null) return@mapIndexed b0
+                val b = parked[legacyKey(box)]?.let { keep += it; b0.copy(drawing = it) } ?: b0
                 drawings[legacyKey(box)]?.let { d ->
                     keep += d.image!!
                     val photo = d.photo?.takeIf { File(it).exists() }

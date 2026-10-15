@@ -236,13 +236,15 @@ sh(`adb shell am broadcast -n ${PKG}/.TestReceiver -a ${PKG}.TEST_DRAW`);
 let drawLine = '';
 for (let i = 0; i < 60 && !drawLine; i++) { await sleep(2000); drawLine = (log().match(/test: tegning .*/) || [''])[0]; }
 console.log('  ' + (drawLine || 'ingen svar fra tegnetesten'));
-const dm = drawLine.match(/kandidater=(\d+) status=(\w+) tegnet=(\d+) bilde=(\d+)x(\d+) foto=(\w+) etter=(\d+)/);
+const dm = drawLine.match(/kandidater=(\d+) status=(\w+) tegnet=(\d+) bilde=(\d+)x(\d+) foto=(\w+) tilside=(\w+) igjen=(\d+) etter=(\d+)/);
 if (!dm) fail('tegnetesten ga ikke svar: ' + drawLine);
-const [, cand, wstate, drawn, bw, bh, photoKept, afterRevert] = dm;
+const [, cand, wstate, drawn, bw, bh, photoKept, parked, again, afterRevert] = dm;
 if (wstate !== 'SUCCEEDED' || +drawn !== +cand || +drawn < 1) fail(`figurene ble ikke tegnet på nytt: ${drawLine}`);
 if (+bw < 800 || +bh < 100) fail('tegningen ble ikke gjort om til et bilde: ' + drawLine);
 if (photoKept !== 'true') fail('fotoet ble ikke tatt vare på: ' + drawLine);
 if (+afterRevert !== +drawn - 1) fail('«Bruk fotoet igjen» virket ikke: ' + drawLine);
+if (parked !== 'true') fail('tegningen ble ikke lagt til side ved «Bruk fotoet igjen»: ' + drawLine);
+if (+again !== +drawn) fail('«Bruk tegningen igjen» virket ikke: ' + drawLine);
 assertAlive();
 console.log('Tegning OK');
 

@@ -109,9 +109,18 @@ class TestReceiver : BroadcastReceiver() {
             "${o.outWidth}x${o.outHeight}"
         }
         val photoKept = block?.second?.photo?.let { File(it).exists() } == true
+        // «Bruk fotoet igjen» legger tegningen til side; «Bruk tegningen igjen» tar den tilbake. Så fotoet igjen.
+        block?.let { (p, b) -> app.repo.usePhoto(p.id, b.image!!) }
+        val parked = block?.let { (p, b) ->
+            no.oystein.bokhylle.core.PageLayout.decode(app.db.pages().get(p.id)?.layoutJson)?.blocks
+                ?.firstOrNull { it.image == b.photo }?.drawing == b.image && File(b.image!!).exists()
+        } == true
+        block?.let { (p, b) -> app.repo.useParkedDrawing(p.id, b.photo!!) }
+        val again = drawings(app.db.pages().forBook(book.id))
         block?.let { (p, b) -> app.repo.usePhoto(p.id, b.image!!) }
         val after = drawings(app.db.pages().forBook(book.id))
-        Log.d(TAG, "test: tegning kandidater=$before status=${info.state} tegnet=$drawn bilde=$size foto=$photoKept etter=$after")
+        Log.d(TAG, "test: tegning kandidater=$before status=${info.state} tegnet=$drawn bilde=$size foto=$photoKept " +
+            "tilside=$parked igjen=$again etter=$after")
     }
 
     /**

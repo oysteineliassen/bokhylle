@@ -111,7 +111,9 @@ class DrawWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         if (bookId < 0) return Result.failure()
         val skipped = skippedImages(applicationContext)
         val figures = app.db.pages().forBook(bookId).filter { it.status == Page.STATUS_FERDIG }
-            .flatMap(::figuresOf).filter { File(it.block.image!!).name !in skipped }
+            .flatMap(::figuresOf)
+            // Figurer med en tegning lagt til side har brukeren valgt fotoet for; de tegnes ikke på nytt for hele boka.
+            .filter { File(it.block.image!!).name !in skipped && it.block.drawing == null }
         var done = 0
         var drawn = 0
         for (f in figures) {
@@ -209,7 +211,7 @@ class DrawWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             val skipped = skippedImages(context)
             return pages.filter { it.status == Page.STATUS_FERDIG }.sumOf { p ->
                 PageLayout.decode(p.layoutJson)?.blocks.orEmpty().count { b ->
-                    b.type == BlockType.FIGURE && b.image != null && !PageImages.isDrawing(b.image) &&
+                    b.type == BlockType.FIGURE && b.image != null && !PageImages.isDrawing(b.image) && b.drawing == null &&
                         File(b.image!!).name !in skipped
                 }
             }

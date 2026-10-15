@@ -31,6 +31,8 @@ data class LayoutBlock(
     val image: String? = null,
     /** Fotoet av figuren når [image] er en ny tegning, så man kan bytte tilbake. */
     val photo: String? = null,
+    /** Tegningen som er lagt til side når brukeren har valgt fotoet igjen, så den kan tas i bruk igjen. */
+    val drawing: String? = null,
     /** Satt når blokken er markert av brukeren. */
     val manual: Boolean = false,
 )
@@ -59,7 +61,7 @@ data class PageLayout(
                 mapOf(
                     "type" to b.type.json, "text" to b.text.ifEmpty { null }, "title" to b.title,
                     "description" to b.description, "number" to b.number, "bbox" to b.box?.toList(),
-                    "image" to b.image, "photo" to b.photo, "manual" to (if (b.manual) true else null),
+                    "image" to b.image, "photo" to b.photo, "drawing" to b.drawing, "manual" to (if (b.manual) true else null),
                 )
             },
         ),
@@ -99,6 +101,7 @@ data class PageLayout(
                     box = Box.of(o["bbox"])?.let(::normalizeBox),
                     image = o.str("image"),
                     photo = o.str("photo"),
+                    drawing = o.str("drawing"),
                     manual = o.bool("manual"),
                 )
             }

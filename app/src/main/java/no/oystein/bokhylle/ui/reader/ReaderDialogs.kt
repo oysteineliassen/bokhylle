@@ -52,6 +52,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -109,6 +110,12 @@ fun FigureDialog(path: String, description: String?, pageId: Long?, modelId: Str
     val app = context.app
     val scope = rememberCoroutineScope()
     val drawing = PageImages.isDrawing(path)
+    // Tegningen som ble lagt til side da fotoet ble valgt igjen (kan tas i bruk igjen).
+    val parked by produceState<String?>(null, pageId, path) {
+        value = pageId?.let { app.db.pages().get(it) }?.let { p ->
+            no.oystein.bokhylle.core.PageLayout.decode(p.layoutJson)?.blocks?.firstOrNull { it.image == path }?.drawing
+        }?.takeIf { File(it).exists() }
+    }
     var work by remember { mutableStateOf<UUID?>(null) }
     var info by remember { mutableStateOf<WorkInfo?>(null) }
     work?.let { id -> LaunchedEffect(id) { WorkManager.getInstance(context).getWorkInfoByIdFlow(id).collect { info = it } } }
@@ -156,6 +163,12 @@ fun FigureDialog(path: String, description: String?, pageId: Long?, modelId: Str
                                 modifier = Modifier.semantics { contentDescription = "Bruk fotoet igjen" },
                             ) {
                                 Text("Bruk fotoet igjen", color = Color.White)
+                            }
+                            parked != null -> OutlinedButton(
+                                onClick = { scope.launch { app.repo.useParkedDrawing(pageId, path); onDismiss() } },
+                                modifier = Modifier.semantics { contentDescription = "Bruk tegningen igjen" },
+                            ) {
+                                Text("Bruk tegningen igjen", color = Color.White)
                             }
                             state == WorkInfo.State.RUNNING || state == WorkInfo.State.ENQUEUED -> Row(verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)

@@ -73,7 +73,9 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
 - **Tegn figuren på nytt**: trykk på en figur i leseren og velg «Tegn på nytt» øverst. Claude tegner diagrammer, grafer og
   enkle tegninger som en ren vektortegning (SVG, gjort om til bilde), og du ser foto og tegning side om side før du
   velger. «Tegn diagrammene på nytt» på bokskjermen gjør det for hele boka (fotografier hoppes over). Fotoet tas vare
-  på, så «Bruk fotoet igjen» bytter tilbake. Ca. 50 øre (5 cent) per figur med Sonnet (anslag). Tegningene er til eget bruk.
+  på, så «Bruk fotoet igjen» bytter tilbake, og tegningen legges til side så «Bruk tegningen igjen» kan ta den
+  tilbake. «Se over tegningene» på bokskjermen viser foto og tegning side om side for alle tegnede figurer, og man
+  velger per figur hva som skal brukes. Ca. 50 øre (5 cent) per figur med Sonnet (anslag). Tegningene er til eget bruk.
 - **Tegne figurer i en chat** (uten API-kreditt): «Eksporter figurer til tegning» på bokskjermen lager en
   figurfil (`… bokhylle-figurer.zip`: figurene, et utsnitt av siden rundt hver figur og beskrivelsene) som kan deles
   eller lagres på telefonen («Lagre figurfilen på telefonen»). Legg den ved i en chat med

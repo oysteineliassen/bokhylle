@@ -38,7 +38,7 @@ import java.io.File
  * og importer filen med tegningene som kommer tilbake.
  */
 @Composable
-fun FiguresCard(book: Book, pages: List<Page>) {
+fun FiguresCard(book: Book, pages: List<Page>, onCompare: () -> Unit = {}) {
     val context = LocalContext.current
     val app = context.app
     val scope = rememberCoroutineScope()
@@ -136,6 +136,13 @@ fun FiguresCard(book: Book, pages: List<Page>) {
                 onClick = { picker.launch(arrayOf("*/*")) },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Importer tegninger") }
+            val drawn = remember(pages) { figurePairs(pages).size }
+            if (drawn > 0) {
+                OutlinedButton(
+                    onClick = onCompare,
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Se over tegningene" },
+                ) { Text("Se over tegningene ($drawn)") }
+            }
         }
     }
 }

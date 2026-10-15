@@ -80,6 +80,7 @@ fun BookScreen(
     onReview: (Long) -> Unit = {},
     onRead: (Long) -> Unit = {},
     onSettings: () -> Unit = {},
+    onCompareFigures: (Long) -> Unit = {},
 ) {
     val context = LocalContext.current
     val vm: BookViewModel = viewModel(key = "bok-$bookId") { BookViewModel(bookId, context.app) }
@@ -180,7 +181,7 @@ fun BookScreen(
             }
 
             if (pages.isNotEmpty() && !b.bilderSlettet) ClaudeCard(b, pages, onSettings)
-            if (pages.isNotEmpty()) FiguresCard(b, pages)
+            if (pages.isNotEmpty()) FiguresCard(b, pages, onCompare = { onCompareFigures(bookId) })
             if (pages.isNotEmpty()) StorageCard(b, pages)
             if (pages.isNotEmpty()) {
                 var exporting by remember { mutableStateOf(false) }

@@ -8,6 +8,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import no.oystein.bokhylle.ui.backup.ImportScreen
 import no.oystein.bokhylle.ui.book.BookScreen
+import no.oystein.bokhylle.ui.book.FigureCompareScreen
 import no.oystein.bokhylle.ui.book.NewBookScreen
 import no.oystein.bokhylle.ui.library.LibraryScreen
 import no.oystein.bokhylle.ui.reader.ReaderScreen
@@ -22,6 +23,7 @@ object Routes {
     fun book(id: Long) = "bok/$id"
     fun review(id: Long) = "kontroll/$id"
     fun crop(pageId: Long) = "beskjaer/$pageId"
+    fun figures(id: Long) = "figurer/$id"
     const val SETTINGS = "innstillinger"
     fun read(id: Long, pageId: Long? = null) = "les/$id" + (pageId?.let { "?side=$it" } ?: "")
     const val SEARCH = "sok"
@@ -65,7 +67,11 @@ fun BokhylleNavHost(openBookId: Long? = null, importFile: String? = null, onOpen
                 onReview = { nav.navigate(Routes.review(it)) },
                 onRead = { nav.navigate(Routes.read(it)) },
                 onSettings = { nav.navigate(Routes.SETTINGS) },
+                onCompareFigures = { nav.navigate(Routes.figures(it)) },
             )
+        }
+        composable("figurer/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+            FigureCompareScreen(bookId = entry.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
         }
         composable("kontroll/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
             ReviewScreen(

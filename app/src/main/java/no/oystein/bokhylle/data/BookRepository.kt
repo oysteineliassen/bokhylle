@@ -205,28 +205,49 @@ class BookRepository(
         val page = db.pages().get(pageId) ?: return
         val layout = no.oystein.bokhylle.core.PageLayout.decode(page.layoutJson) ?: return
         // [photo] er bildet figuren har nå. Er det en tegning, erstattes den, og det opprinnelige fotoet beholdes.
-        val blocks = layout.blocks.map { if (it.image == photo) it.copy(image = drawing, photo = it.photo ?: photo) else it }
-        db.pages().setLayoutJson(pageId, layout.copy(blocks = blocks).encode())
-        if (PageImages.isDrawing(photo) && photo != drawing) {
-            files.delete(photo)
-            files.delete(photo.removeSuffix(".webp") + ".svg")
+        // En tegning lagt til side (se [usePhoto]) erstattes også.
+        val replaced = mutableListOf<String>()
+        val blocks = layout.blocks.map {
+            if (it.image != photo) return@map it
+            if (PageImages.isDrawing(photo)) replaced += photo
+            it.drawing?.let(replaced::add)
+            it.copy(image = drawing, photo = it.photo ?: photo, drawing = null)
         }
+        db.pages().setLayoutJson(pageId, layout.copy(blocks = blocks).encode())
+        replaced.filter { it != drawing }.forEach { deleteDrawing(it) }
         db.books().touch(page.bookId)
         processor.rebuild(page.bookId)
     }
 
-    /** Tilbake til fotoet: tegningen slettes. Finnes ikke fotoet lenger, klippes det ut av sidebildet på nytt. */
+    /**
+     * Tilbake til fotoet. Tegningen legges til side, så [useParkedDrawing] kan ta den i bruk igjen.
+     * Finnes ikke fotoet lenger, klippes det ut av sidebildet på nytt.
+     */
     suspend fun usePhoto(pageId: Long, drawing: String) {
         val page = db.pages().get(pageId) ?: return
         val layout = no.oystein.bokhylle.core.PageLayout.decode(page.layoutJson) ?: return
         val blocks = layout.blocks.map {
-            if (it.image == drawing) it.copy(image = it.photo?.takeIf { p -> java.io.File(p).exists() }, photo = null) else it
+            if (it.image == drawing) it.copy(image = it.photo?.takeIf { p -> java.io.File(p).exists() }, photo = null, drawing = drawing) else it
         }
         db.pages().setLayoutJson(pageId, layout.copy(blocks = blocks).encode())
-        files.delete(drawing)
-        files.delete(drawing.removeSuffix(".webp") + ".svg")
         db.books().touch(page.bookId)
         processor.rebuild(page.bookId)
+    }
+
+    /** Tar i bruk igjen tegningen som ble lagt til side for figuren som nå viser [photo]. */
+    suspend fun useParkedDrawing(pageId: Long, photo: String) {
+        val page = db.pages().get(pageId) ?: return
+        val layout = no.oystein.bokhylle.core.PageLayout.decode(page.layoutJson) ?: return
+        val drawing = layout.blocks.firstOrNull { it.image == photo }?.drawing?.takeIf { java.io.File(it).exists() } ?: return
+        val blocks = layout.blocks.map { if (it.image == photo) it.copy(image = drawing, photo = photo, drawing = null) else it }
+        db.pages().setLayoutJson(pageId, layout.copy(blocks = blocks).encode())
+        db.books().touch(page.bookId)
+        processor.rebuild(page.bookId)
+    }
+
+    private fun deleteDrawing(path: String) {
+        files.delete(path)
+        files.delete(path.removeSuffix(".webp") + ".svg")
     }
 
     /** Finner liggende og opp-ned bilder i boka og snur dem (i bakgrunnen). */
