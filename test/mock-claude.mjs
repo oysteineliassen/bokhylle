@@ -68,6 +68,7 @@ const server = http.createServer((req, res) => {
   req.on('data', (c) => (data += c));
   req.on('end', () => {
     const url = req.url.split('?')[0];
+    if (req.method === 'GET' && url === '/kall') return send(res, 200, calls);
     if (req.headers['x-api-key'] !== 'test-nokkel-1234') return send(res, 401, { type: 'error', error: { type: 'authentication_error', message: 'feil nøkkel' } });
     try {
       if (req.method === 'POST' && url === '/v1/messages/batches') {
@@ -115,7 +116,6 @@ const server = http.createServer((req, res) => {
         console.log(`mock: enkeltkall (${body.model}), fallbacks=${JSON.stringify(body.fallbacks)}`);
         return send(res, 200, message('enkelt', body.model));
       }
-      if (req.method === 'GET' && url === '/kall') return send(res, 200, calls);
       send(res, 404, { type: 'error', error: { type: 'not_found_error', message: url } });
     } catch (e) {
       send(res, 500, { type: 'error', error: { type: 'api_error', message: String(e) } });
