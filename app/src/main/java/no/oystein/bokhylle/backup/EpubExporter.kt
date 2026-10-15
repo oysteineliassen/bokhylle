@@ -79,7 +79,9 @@ object EpubExporter {
                             images += name to jpeg
                             val caption = body.getOrNull(bi + 1)?.takeIf { it.type == BlockType.CAPTION }?.text
                             c.append("<figure><img src=\"").append(name).append("\" alt=\"").append(esc(b.description ?: "Figur")).append("\"/>")
+                            // Som i leseren: uten bildetekst fra boka vises beskrivelsen under figuren.
                             if (caption != null) c.append("<figcaption>").append(inline(caption)).append("</figcaption>")
+                            else if (!b.description.isNullOrBlank()) c.append("<figcaption class=\"beskrivelse\">").append(esc(b.description!!)).append("</figcaption>")
                             c.append("</figure>\n")
                         } else if (b.description != null) {
                             c.append("<p class=\"figur\">[").append(esc(b.description!!)).append("]</p>\n")
@@ -232,6 +234,7 @@ aside.boks h3 { margin: 0 0 0.4em 0; }
 figure { margin: 1em 0; text-align: center; }
 img { max-width: 100%; }
 figcaption, p.bildetekst { font-style: italic; font-size: 0.9em; margin-top: 0.3em; }
+figcaption.beskrivelse { font-size: 0.8em; }
 aside.fotnote { font-size: 0.85em; margin: 0.4em 0; }
 body.omslag { margin: 0; text-align: center; }
 body.omslag img { max-height: 100%; }
