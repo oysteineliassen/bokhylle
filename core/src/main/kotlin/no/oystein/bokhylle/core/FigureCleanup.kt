@@ -181,6 +181,37 @@ object FigureCleanup {
     }
 
     /**
+     * Strammer inn tekstblokkenes rammer (fra Claude eller ML Kit) til OCR-linjene som faktisk hører til teksten
+     * deres. En etikett rett under en figur (f.eks. «Negativ side –») kan ligge innenfor bildetekstens ramme uten å
+     * være en del av bildeteksten; da regnes den ikke som tekst, og [expandFigure] kan ta den med i figuren.
+     * Linjene sammenlignes med blokkens tekst på bokstavtrekanter, så feillesinger (ø/o o.l.) tåles.
+     */
+    fun tightenTextBoxes(texts: List<Pair<Box, String>>, ocrLines: List<OcrLine>): List<Box> {
+        fun norm(s: String) = s.lowercase().map { c ->
+            when (c) { 'ø', 'ö' -> 'o'; 'æ', 'ä' -> 'a'; 'å' -> 'a'; else -> c }
+        }.filter { it.isLetterOrDigit() }.joinToString("")
+        fun grams(s: String) = (0..s.length - 3).map { s.substring(it, it + 3) }.toSet()
+        return texts.map { (box, text) ->
+            val textGrams = grams(norm(text))
+            if (textGrams.isEmpty()) return@map box
+            val inside = ocrLines.filter { l ->
+                val w = minOf(l.right, box.right) - maxOf(l.left, box.left)
+                val h = minOf(l.bottom, box.bottom) - maxOf(l.top, box.top)
+                w > 0f && h > 0f && w * h > 0.3f * (l.right - l.left) * (l.bottom - l.top)
+            }
+            if (inside.isEmpty()) return@map box
+            val belongs = inside.filter { l ->
+                val g = grams(norm(l.text))
+                // Korte linjer kan ikke avgjøres; de regnes som en del av teksten (som før).
+                g.size < 3 || g.count { it in textGrams } >= 0.6f * g.size
+            }
+            // Hører ingen linjer til (f.eks. dårlig OCR), beholdes rammen.
+            if (belongs.isEmpty()) return@map box
+            belongs.map { Box(it.left, it.top, it.right, it.bottom) }.reduce { acc, b -> acc.union(b) }
+        }
+    }
+
+    /**
      * Utvider figurens område så det som hører til figuren kommer med: korte tekstlinjer rett utenfor
      * (etiketter, akser, piler med tekst) som ikke er en del av brødteksten, og litt luft på hver side
      * (strektegning som stikker ut). Utvidelsen stopper ved tekstblokker, så brødtekst ikke kommer med.

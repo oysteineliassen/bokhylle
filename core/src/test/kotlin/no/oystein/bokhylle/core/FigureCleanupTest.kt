@@ -176,6 +176,26 @@ class FigureCleanupTest {
     }
 
     @Test
+    fun `etikett innenfor bildetekstens ramme kommer med i figuren`() {
+        // Vannmolekylet: «Negativ side –» står rett under figuren, men bildetekstens ramme begynner over den.
+        val figure = Box(0.15f, 0.2f, 0.85f, 0.6f)
+        val label = OcrLine("Negativ side –", 0.4f, 0.62f, 0.6f, 0.65f)
+        val cap1 = OcrLine("Vannmolekylet (H2O) består av ett oksygenatom og to hydrogenatomer. De dan-", 0.12f, 0.68f, 0.88f, 0.71f)
+        val cap2 = OcrLine("ner en gjennomsnittlig vinkel pa 104,5 grader, men molekylet vibrerer", 0.12f, 0.72f, 0.88f, 0.75f)
+        val caption = Box(0.12f, 0.61f, 0.88f, 0.76f) to
+            "Vannmolekylet (H₂O) består av ett oksygenatom og to hydrogenatomer. De danner en gjennomsnittlig vinkel på 104,5 grader, men molekylet vibrerer"
+        val lines = listOf(label, cap1, cap2)
+        val tight = FigureCleanup.tightenTextBoxes(listOf(caption), lines)
+        assertTrue(tight[0].top >= cap1.top - 0.001f, "bildetekstens ramme ble ikke strammet inn: ${tight[0]}")
+        val out = FigureCleanup.expandFigure(figure, lines, tight)
+        assertTrue(out.bottom >= label.bottom, "etiketten kom ikke med: $out")
+        assertTrue(out.bottom < cap1.top + 0.001f, "bildeteksten kom med: $out")
+        // Uten innstramming stopper rammen ved bildeteksten (slik det var).
+        val before = FigureCleanup.expandFigure(figure, lines, listOf(caption.first))
+        assertTrue(before.bottom < label.bottom, "testen viser ikke forskjellen: $before")
+    }
+
+    @Test
     fun `fargeflate midt i en tegning gir ingen beskjæring`() {
         val white = rgb(235, 233, 230)
         val w = 100; val h = 100

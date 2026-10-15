@@ -128,8 +128,12 @@ class BookProcessor(private val app: BokhylleApp) {
         val legacy = previousBlocks.associate { (box, img) -> legacyKey(box) to img }
         val old = PageImages.figurePaths(page).toSet()
         val keep = mutableSetOf<String>()
-        val texts = layout.blocks.filter { it.type != BlockType.FIGURE && it.text.isNotBlank() }.mapNotNull { it.box }
         val ocrLines = OcrPage.decode(page.ocrLinjer)?.lines.orEmpty()
+        val texts = no.oystein.bokhylle.core.FigureCleanup.tightenTextBoxes(
+            layout.blocks.filter { it.type != BlockType.FIGURE && it.text.isNotBlank() }
+                .mapNotNull { b -> b.box?.let { it to listOfNotNull(b.title, b.text).joinToString(" ") } },
+            ocrLines,
+        )
         var bitmap: Bitmap? = null
         var paper = 0
         try {
@@ -182,7 +186,7 @@ class BookProcessor(private val app: BokhylleApp) {
         private const val TAG = "Bokhylle"
 
         /** Øk når utklippingen av figurer forbedres, så eksisterende figurer lages på nytt. */
-        private const val FIGURE_VERSION = 4
+        private const val FIGURE_VERSION = 5
 
         /** Sorteringen og flaggene for sidene slik de er nå (brukes også av kontrollskjermen for «manglende sider»). */
         fun analyze(pages: List<Page>): OrderResult = PageOrdering.order(
