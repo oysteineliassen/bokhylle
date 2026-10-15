@@ -13,6 +13,8 @@ import android.util.Log
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import no.oystein.bokhylle.core.Json
+import no.oystein.bokhylle.core.arr
+import no.oystein.bokhylle.core.obj
 import no.oystein.bokhylle.data.Page
 import no.oystein.bokhylle.image.ImageOps
 import java.io.File
@@ -35,6 +37,7 @@ class TestReceiver : BroadcastReceiver() {
                     "no.oystein.bokhylle.TEST_CLAUDE" -> testClaude(app, intent.getStringExtra("mode") ?: "batch")
                     "no.oystein.bokhylle.TEST_BACKUP" -> testBackup(app)
                     "no.oystein.bokhylle.TEST_DRAW" -> testDraw(app)
+                    "no.oystein.bokhylle.TEST_FIGURES" -> testFigureExchange(app)
                     "no.oystein.bokhylle.TEST_RATE" -> {
                         val r = no.oystein.bokhylle.claude.ExchangeRates.refresh(app)
                         Log.d(TAG, "test: kurs ${r?.nokPerUnit} dato ${r?.date} format=${no.oystein.bokhylle.claude.formatUsd(0.05)}")
@@ -109,6 +112,49 @@ class TestReceiver : BroadcastReceiver() {
         block?.let { (p, b) -> app.repo.usePhoto(p.id, b.image!!) }
         val after = drawings(app.db.pages().forBook(book.id))
         Log.d(TAG, "test: tegning kandidater=$before status=${info.state} tegnet=$drawn bilde=$size foto=$photoKept etter=$after")
+    }
+
+    /**
+     * Figurer via chat: eksporter figurfilen, lag en tegningsfil slik Claude i en chat ville gjort (en SVG per figur),
+     * og importer den. Resultatet skrives til loggen («test: figurfil …»).
+     */
+    private suspend fun testFigureExchange(app: BokhylleApp) {
+        val book = app.db.books().all().first { it.tittel == TITLE }
+        val dir = File(app.cacheDir, "figurtest").apply { deleteRecursively(); mkdirs() }
+        val figFile = File(dir, "bok.${no.oystein.bokhylle.backup.FigureExchange.FIGURES_EXTENSION}")
+        val exported = figFile.outputStream().use { no.oystein.bokhylle.backup.FigureExchange.export(app, book.id, it) }
+        var manifest: Map<String, Any?>? = null
+        var contexts = 0
+        java.util.zip.ZipInputStream(figFile.inputStream()).use { zip ->
+            while (true) {
+                val e = zip.nextEntry ?: break
+                if (e.name == "figurer.json") manifest = no.oystein.bokhylle.core.Json.parse(String(zip.readBytes())).obj()
+                if (e.name.startsWith("kontekst/")) contexts++
+            }
+        }
+        val keys = manifest?.get("figures").arr().mapNotNull { it.obj()?.get("key") as? String }
+        val drawFile = File(dir, "bok.${no.oystein.bokhylle.backup.FigureExchange.DRAWINGS_EXTENSION}")
+        java.util.zip.ZipOutputStream(drawFile.outputStream()).use { zip ->
+            val json = no.oystein.bokhylle.core.Json.write(
+                mapOf(
+                    "format" to "bokhylle-tegninger", "version" to 1, "book" to manifest?.get("book"),
+                    "drawings" to keys.map { mapOf("key" to it, "svg" to "tegninger/$it.svg") } + mapOf("key" to "finnes-ikke", "svg" to "tegninger/x.svg"),
+                ),
+            )
+            zip.putNextEntry(java.util.zip.ZipEntry("tegninger.json")); zip.write(json.toByteArray()); zip.closeEntry()
+            for (k in keys) {
+                zip.putNextEntry(java.util.zip.ZipEntry("tegninger/$k.svg"))
+                zip.write("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 120\"><rect width=\"200\" height=\"120\" fill=\"#F4C766\"/><circle cx=\"100\" cy=\"60\" r=\"40\" fill=\"#E8A33C\"/></svg>".toByteArray())
+                zip.closeEntry()
+            }
+        }
+        val result = drawFile.inputStream().use { no.oystein.bokhylle.backup.FigureExchange.importDrawings(app, book.id, it) }
+        val wrongBook = runCatching {
+            val other = app.repo.createBook("Annen bok", "")
+            try { drawFile.inputStream().use { no.oystein.bokhylle.backup.FigureExchange.importDrawings(app, other, it) } } finally { app.repo.deleteBook(other) }
+        }.isFailure
+        Log.d(TAG, "test: figurfil eksportert=$exported kontekst=$contexts importert=${result.added} hoppet=${result.skipped} " +
+            "annenbok=$wrongBook tegninger=${drawings(app.db.pages().forBook(book.id))}")
     }
 
     /**

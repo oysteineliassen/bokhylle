@@ -74,6 +74,10 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
   enkle tegninger som en ren vektortegning (SVG, gjort om til bilde), og du ser foto og tegning side om side før du
   velger. «Tegn diagrammene på nytt» på bokskjermen gjør det for hele boka (fotografier hoppes over). Fotoet tas vare
   på, så «Bruk fotoet igjen» bytter tilbake. Ca. 50 øre (5 cent) per figur med Sonnet (anslag). Tegningene er til eget bruk.
+- **Tegne figurer i en chat** (uten API-kreditt): «Eksporter figurer til tegning» på bokskjermen lager en
+  `.bokhylle-figurer`-fil (figurene, et utsnitt av siden rundt hver figur og beskrivelsene). Send den i en chat med
+  Claude, få tilbake en `.bokhylle-tegninger`-fil, og velg «Importer tegninger». Fotoene tas vare på.
+  `verktoy/tegninger.py` pakker ut figurfilen og pakker tegningsfilen.
 - **Figurer i gråtoner** (valg ved EPUB-eksport og «Send til Kindle», på som standard): figurene lages for Kindle uten
   farger, så lyse linjer på farget bakgrunn fortsatt synes. Slå av for Kindle Colorsoft og Kindle-appen.
 

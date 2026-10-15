@@ -246,6 +246,22 @@ if (+afterRevert !== +drawn - 1) fail('«Bruk fotoet igjen» virket ikke: ' + dr
 assertAlive();
 console.log('Tegning OK');
 
+// 5b2. Figurer via chat: eksporter figurfilen og importer en tegningsfil (den ene figuren som ble satt tilbake til foto).
+sh('adb logcat -c');
+sh(`adb shell am broadcast -n ${PKG}/.TestReceiver -a ${PKG}.TEST_FIGURES`);
+let figLine = '';
+for (let i = 0; i < 30 && !figLine; i++) { await sleep(1500); figLine = (log().match(/test: figurfil .*/) || [''])[0]; }
+console.log('  ' + (figLine || 'ingen svar fra figurfiltesten'));
+const fm = figLine.match(/eksportert=(\d+) kontekst=(\d+) importert=(\d+) hoppet=(\d+) annenbok=(\w+) tegninger=(\d+)/);
+if (!fm) fail('figurfiltesten ga ikke svar: ' + figLine);
+const [, fExported, fContext, fAdded, fSkipped, fWrongBook, fDrawings] = fm;
+if (+fExported !== 1 || +fContext !== 1) fail('figurfilen skulle hatt den ene figuren som ikke er tegnet, med utsnitt: ' + figLine);
+if (+fAdded !== 1 || +fSkipped !== 1) fail('tegningene ble ikke lagt inn (eller den ukjente ble ikke hoppet over): ' + figLine);
+if (fWrongBook !== 'true') fail('tegninger for en annen bok ble ikke avvist: ' + figLine);
+if (+fDrawings !== +drawn) fail('alle figurene skulle nå vært tegninger: ' + figLine);
+assertAlive();
+console.log('Figurfil OK');
+
 // 5c. Dollarkursen fra Norges Bank (ekte nett; en ekstern tjeneste som er nede, skal ikke stoppe testen).
 sh('adb logcat -c');
 sh(`adb shell am broadcast -n ${PKG}/.TestReceiver -a ${PKG}.TEST_RATE`);

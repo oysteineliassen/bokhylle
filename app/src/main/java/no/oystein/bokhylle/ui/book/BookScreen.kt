@@ -180,6 +180,7 @@ fun BookScreen(
             }
 
             if (pages.isNotEmpty() && !b.bilderSlettet) ClaudeCard(b, pages, onSettings)
+            if (pages.isNotEmpty()) FiguresCard(b, pages)
             if (pages.isNotEmpty()) StorageCard(b, pages)
             if (pages.isNotEmpty()) {
                 var exporting by remember { mutableStateOf(false) }

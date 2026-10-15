@@ -71,6 +71,35 @@ object ImageOps {
         FileOutputStream(file).use { bitmap.compress(format, quality, it) }
     }
 
+    /**
+     * Utsnitt av sidebildet rundt en figur, med figurens område markert med en rød ramme, så den som tegner
+     * figuren på nytt ser det som stikker utenfor (etiketter, piler) og hva som er brødtekst.
+     * null når sidebildet ikke finnes lenger.
+     */
+    fun figureContext(pagePath: String, box: Box, margin: Float = 0.12f): Bitmap? {
+        if (!File(pagePath).exists()) return null
+        val page = decode(pagePath) ?: return null
+        try {
+            val outer = Box(
+                (box.left - margin).coerceAtLeast(0f), (box.top - margin).coerceAtLeast(0f),
+                (box.right + margin).coerceAtMost(1f), (box.bottom + margin).coerceAtMost(1f),
+            )
+            val cut = crop(page, outer) ?: return null
+            val img = cut.copy(Bitmap.Config.ARGB_8888, true)
+            if (img != cut) cut.recycle()
+            val sx = img.width / (outer.width * page.width)
+            val sy = img.height / (outer.height * page.height)
+            Canvas(img).drawRect(
+                (box.left - outer.left) * page.width * sx, (box.top - outer.top) * page.height * sy,
+                (box.right - outer.left) * page.width * sx, (box.bottom - outer.top) * page.height * sy,
+                Paint().apply { color = Color.RED; style = Paint.Style.STROKE; strokeWidth = maxOf(3f, img.width / 300f) },
+            )
+            return img
+        } finally {
+            page.recycle()
+        }
+    }
+
     /** Lagrer som JPEG (for bilder som sendes videre). */
     fun saveJpeg(bitmap: Bitmap, file: File, quality: Int = 90) {
         file.parentFile?.mkdirs()

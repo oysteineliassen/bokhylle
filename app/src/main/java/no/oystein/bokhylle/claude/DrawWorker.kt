@@ -86,38 +86,11 @@ class DrawWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
      */
     private fun contextImage(f: Figure): String? {
         val box = f.block.box ?: return null
-        if (!File(f.page.bildeSti).exists()) return null
-        val page = ImageOps.decode(f.page.bildeSti) ?: return null
-        try {
-            val m = 0.12f
-            val outer = no.oystein.bokhylle.core.Box(
-                (box.left - m).coerceAtLeast(0f), (box.top - m).coerceAtLeast(0f),
-                (box.right + m).coerceAtMost(1f), (box.bottom + m).coerceAtMost(1f),
-            )
-            val cut = ImageOps.crop(page, outer) ?: return null
-            val img = cut.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
-            if (img != cut) cut.recycle()
-            val sx = img.width / (outer.width * page.width)
-            val sy = img.height / (outer.height * page.height)
-            val left = (box.left - outer.left) * page.width * sx
-            val top = (box.top - outer.top) * page.height * sy
-            val right = (box.right - outer.left) * page.width * sx
-            val bottom = (box.bottom - outer.top) * page.height * sy
-            android.graphics.Canvas(img).drawRect(
-                left, top, right, bottom,
-                android.graphics.Paint().apply {
-                    color = android.graphics.Color.RED
-                    style = android.graphics.Paint.Style.STROKE
-                    strokeWidth = maxOf(3f, img.width / 300f)
-                },
-            )
-            val file = File(applicationContext.cacheDir, "tegning-utsnitt.jpg")
-            ImageOps.saveJpeg(img, file)
-            img.recycle()
-            return ClaudeOcr.encodeImage(file.path).also { file.delete() }
-        } finally {
-            page.recycle()
-        }
+        val img = ImageOps.figureContext(f.page.bildeSti, box) ?: return null
+        val file = File(applicationContext.cacheDir, "tegning-utsnitt.jpg")
+        ImageOps.saveJpeg(img, file)
+        img.recycle()
+        return ClaudeOcr.encodeImage(file.path).also { file.delete() }
     }
 
     private suspend fun drawOne(pageId: Long, image: String): Result {
