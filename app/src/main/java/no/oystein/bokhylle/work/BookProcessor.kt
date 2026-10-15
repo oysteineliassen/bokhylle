@@ -117,6 +117,10 @@ class BookProcessor(private val app: BokhylleApp) {
         val previousBlocks = PageLayout.decode(page.layoutJson)?.blocks.orEmpty()
             .mapNotNull { b -> val box = b.box; val img = b.image; if (box != null && img != null && File(img).exists()) box to img else null }
         val previous = previousBlocks.filter { (_, img) -> "v$FIGURE_VERSION" in File(img).name }.associate { (box, img) -> keyOf(box) to img }
+        // Figurer som er tegnet på nytt (ClaudeDraw) beholder tegningen, og fotoet tas vare på ved siden av.
+        val drawings = PageLayout.decode(page.layoutJson)?.blocks.orEmpty()
+            .filter { b -> b.box != null && PageImages.isDrawing(b.image) && File(b.image!!).exists() }
+            .associate { b -> legacyKey(b.box!!) to b }
         val legacy = previousBlocks.associate { (box, img) -> legacyKey(box) to img }
         val old = PageImages.figurePaths(page).toSet()
         val keep = mutableSetOf<String>()
@@ -128,6 +132,12 @@ class BookProcessor(private val app: BokhylleApp) {
             val blocks = layout.blocks.mapIndexed { i, b ->
                 val box = b.box
                 if (b.type != BlockType.FIGURE || box == null) return@mapIndexed b
+                drawings[legacyKey(box)]?.let { d ->
+                    keep += d.image!!
+                    val photo = d.photo?.takeIf { File(it).exists() }
+                    photo?.let { keep += it }
+                    return@mapIndexed b.copy(image = d.image, photo = photo)
+                }
                 val key = keyOf(box)
                 previous[key]?.let { keep += it; return@mapIndexed b.copy(image = it) }
                 val file = File(app.files.bookDir(page.bookId), "figur-${page.id}-$i-$key.webp")

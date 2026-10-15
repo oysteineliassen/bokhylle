@@ -67,6 +67,10 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
 - **Figurer** klippes ut fra sidebildet og gjøres mer lik originalen: bildetekst som også vises som tekst klippes
   bort, skjevheten måles ut fra tekstlinjene og rettes, lyset jevnes ut, gjennomslag fra baksiden fjernes, og fargene
   rettes som i en skanner (papiret blir hvitt, kontrasten strekkes, litt skarpere). Fargede bokser beskjæres til boksen.
+- **Tegn figuren på nytt**: trykk på en figur i leseren og velg «Tegn på nytt». Claude tegner diagrammer, grafer og
+  enkle tegninger som en ren vektortegning (SVG, gjort om til bilde), og du ser foto og tegning side om side før du
+  velger. «Tegn diagrammene på nytt» på bokskjermen gjør det for hele boka (fotografier hoppes over). Fotoet tas vare
+  på, så «Bruk fotoet igjen» bytter tilbake. Ca. 5 cent per figur med Sonnet (anslag). Tegningene er til eget bruk.
 - **Figurer i gråtoner** (valg ved EPUB-eksport og «Send til Kindle», på som standard): figurene lages for Kindle uten
   farger, så lyse linjer på farget bakgrunn fortsatt synes. Slå av for Kindle Colorsoft og Kindle-appen.
 

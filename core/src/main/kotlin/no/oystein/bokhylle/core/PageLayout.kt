@@ -27,8 +27,10 @@ data class LayoutBlock(
     val description: String? = null,
     val number: String? = null,
     val box: Box? = null,
-    /** Utklipt figurbilde (filsti). */
+    /** Utklipt figurbilde (filsti), eller tegningen når figuren er tegnet på nytt. */
     val image: String? = null,
+    /** Fotoet av figuren når [image] er en ny tegning, så man kan bytte tilbake. */
+    val photo: String? = null,
     /** Satt når blokken er markert av brukeren. */
     val manual: Boolean = false,
 )
@@ -57,7 +59,7 @@ data class PageLayout(
                 mapOf(
                     "type" to b.type.json, "text" to b.text.ifEmpty { null }, "title" to b.title,
                     "description" to b.description, "number" to b.number, "bbox" to b.box?.toList(),
-                    "image" to b.image, "manual" to (if (b.manual) true else null),
+                    "image" to b.image, "photo" to b.photo, "manual" to (if (b.manual) true else null),
                 )
             },
         ),
@@ -96,6 +98,7 @@ data class PageLayout(
                     number = o.str("number") ?: o.num("number")?.toInt()?.toString(),
                     box = Box.of(o["bbox"])?.let(::normalizeBox),
                     image = o.str("image"),
+                    photo = o.str("photo"),
                     manual = o.bool("manual"),
                 )
             }

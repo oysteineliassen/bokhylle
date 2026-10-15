@@ -58,7 +58,7 @@ object BookPackage {
 
         val pageJson = pages.mapIndexed { i, p ->
             val layout = PageLayout.decode(p.layoutJson)
-            val portable = layout?.copy(blocks = layout.blocks.map { b -> b.copy(image = addImage(b.image)) })
+            val portable = layout?.copy(blocks = layout.blocks.map { b -> b.copy(image = addImage(b.image), photo = addImage(b.photo)) })
             mapOf(
                 "index" to i,
                 "ocrTekst" to p.ocrTekst,
@@ -224,7 +224,7 @@ object BookPackage {
         val pageObjects = pagesJson.mapNotNull { it.obj() }.sortedBy { it.num("index") ?: 0.0 }
         for (o in pageObjects) {
             val layout = PageLayout.decode(o.str("layoutJson"))
-            val local = layout?.copy(blocks = layout.blocks.map { blk -> blk.copy(image = image(blk.image)) })
+            val local = layout?.copy(blocks = layout.blocks.map { blk -> blk.copy(image = image(blk.image), photo = image(blk.photo)) })
             val picture = image(o.str("bilde"))
             val original = image(o.str("original")) ?: picture
             ids += app.db.pages().insert(

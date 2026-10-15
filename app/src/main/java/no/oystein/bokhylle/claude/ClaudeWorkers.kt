@@ -21,7 +21,7 @@ import no.oystein.bokhylle.data.Page
 private const val TAG = "Bokhylle"
 
 /** Feil som ikke blir bedre av å prøve igjen (feil nøkkel, ugyldig forespørsel). */
-private fun Throwable.permanent() = this is UnauthorizedException || this is PermissionDeniedException ||
+internal fun Throwable.permanent() = this is UnauthorizedException || this is PermissionDeniedException ||
     this is BadRequestException || (this is ClaudeException && !retryable)
 
 /** Sender sidene i en bok til Claude som Message Batches (maks [CHUNK] sider per batch). */

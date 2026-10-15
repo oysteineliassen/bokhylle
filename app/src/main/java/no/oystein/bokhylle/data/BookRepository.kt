@@ -198,6 +198,32 @@ class BookRepository(
         ProcessWorker.enqueue(context, page.bookId)
     }
 
+    /**
+     * Bruk en ny tegning (ClaudeDraw) i stedet for fotoet av en figur. Fotoet tas vare på, så man kan bytte tilbake.
+     */
+    suspend fun useDrawing(pageId: Long, photo: String, drawing: String) {
+        val page = db.pages().get(pageId) ?: return
+        val layout = no.oystein.bokhylle.core.PageLayout.decode(page.layoutJson) ?: return
+        val blocks = layout.blocks.map { if (it.image == photo) it.copy(image = drawing, photo = photo) else it }
+        db.pages().setLayoutJson(pageId, layout.copy(blocks = blocks).encode())
+        db.books().touch(page.bookId)
+        processor.rebuild(page.bookId)
+    }
+
+    /** Tilbake til fotoet: tegningen slettes. Finnes ikke fotoet lenger, klippes det ut av sidebildet på nytt. */
+    suspend fun usePhoto(pageId: Long, drawing: String) {
+        val page = db.pages().get(pageId) ?: return
+        val layout = no.oystein.bokhylle.core.PageLayout.decode(page.layoutJson) ?: return
+        val blocks = layout.blocks.map {
+            if (it.image == drawing) it.copy(image = it.photo?.takeIf { p -> java.io.File(p).exists() }, photo = null) else it
+        }
+        db.pages().setLayoutJson(pageId, layout.copy(blocks = blocks).encode())
+        files.delete(drawing)
+        files.delete(drawing.removeSuffix(".webp") + ".svg")
+        db.books().touch(page.bookId)
+        processor.rebuild(page.bookId)
+    }
+
     /** Finner liggende og opp-ned bilder i boka og snur dem (i bakgrunnen). */
     fun fixOrientation(bookId: Long) = OrientWorker.enqueue(context, bookId)
 

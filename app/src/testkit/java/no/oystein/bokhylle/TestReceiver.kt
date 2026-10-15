@@ -34,6 +34,7 @@ class TestReceiver : BroadcastReceiver() {
                     "no.oystein.bokhylle.TEST_REPORT" -> report(app, intent.getStringExtra("title") ?: TITLE)
                     "no.oystein.bokhylle.TEST_CLAUDE" -> testClaude(app, intent.getStringExtra("mode") ?: "batch")
                     "no.oystein.bokhylle.TEST_BACKUP" -> testBackup(app)
+                    "no.oystein.bokhylle.TEST_DRAW" -> testDraw(app)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "test feilet", e)
@@ -74,6 +75,38 @@ class TestReceiver : BroadcastReceiver() {
         Log.d(TAG, "test: claude $mode")
     }
 
+    private fun drawings(pages: List<Page>) = pages.sumOf { p ->
+        no.oystein.bokhylle.core.PageLayout.decode(p.layoutJson)?.blocks.orEmpty()
+            .count { no.oystein.bokhylle.data.PageImages.isDrawing(it.image) && File(it.image!!).exists() }
+    }
+
+    /**
+     * «Tegn diagrammene på nytt» for hele testboka (mot testserveren), så tilbake til fotoet for én figur.
+     * Resultatet skrives til loggen («test: tegning …»).
+     */
+    private suspend fun testDraw(app: BokhylleApp) {
+        val book = app.db.books().all().first { it.tittel == TITLE }
+        val before = no.oystein.bokhylle.claude.DrawWorker.candidates(app, app.db.pages().forBook(book.id))
+        no.oystein.bokhylle.claude.DrawWorker.book(app, book.id)
+        val wm = androidx.work.WorkManager.getInstance(app)
+        val info = wm.getWorkInfosForUniqueWorkFlow(no.oystein.bokhylle.claude.DrawWorker.bookWorkName(book.id))
+            .first { list -> list.firstOrNull()?.state?.isFinished == true }.first()
+        val pages = app.db.pages().forBook(book.id)
+        val drawn = drawings(pages)
+        // Bildet tegningen ble til, og fotoet som er tatt vare på.
+        val block = pages.flatMap { no.oystein.bokhylle.core.PageLayout.decode(it.layoutJson)?.blocks.orEmpty().map { b -> it to b } }
+            .firstOrNull { (_, b) -> no.oystein.bokhylle.data.PageImages.isDrawing(b.image) }
+        val size = block?.second?.image?.let { path ->
+            val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(path, o)
+            "${o.outWidth}x${o.outHeight}"
+        }
+        val photoKept = block?.second?.photo?.let { File(it).exists() } == true
+        block?.let { (p, b) -> app.repo.usePhoto(p.id, b.image!!) }
+        val after = drawings(app.db.pages().forBook(book.id))
+        Log.d(TAG, "test: tegning kandidater=$before status=${info.state} tegnet=$drawn bilde=$size foto=$photoKept etter=$after")
+    }
+
     /**
      * Eksporterer testboka som .bokhylle og importerer den igjen som kopi, lager EPUB, og tar en sikkerhetskopi
      * av biblioteket og forhåndsviser den. Resultatet skrives til loggen («test: backup …»).
@@ -89,6 +122,9 @@ class TestReceiver : BroadcastReceiver() {
         val copy = app.db.pages().forBook(copyId)
         val sameText = copy.map { it.ryddetTekst } == pages.map { it.ryddetTekst }
         val figures = copy.flatMap { no.oystein.bokhylle.data.PageImages.figurePaths(it) }.count { File(it).exists() }
+        // Tegnede figurer skal følge med (også etter at kopien er bygget opp på nytt).
+        app.processor.rebuild(copyId)
+        val drawingsOk = drawings(app.db.pages().forBook(copyId)) == drawings(pages)
         val epub = File(dir, "bok.epub")
         epub.outputStream().use { no.oystein.bokhylle.backup.EpubExporter.export(app, book.id, it) }
         val backupFile = File(dir, "alt.bokhylle-backup")
@@ -102,7 +138,7 @@ class TestReceiver : BroadcastReceiver() {
             TAG,
             "test: backup uuid=${info.uuid == book.uuid} sider=${copy.size}/${pages.size} tekst=$sameText figurer=$figures " +
                 "epub=${epub.length()} kopi=${preview.books.size} like=${preview.compare.count { it.status.name == "SAME" }} " +
-                "skadet=$brokenOk bøker=$booksAfter",
+                "skadet=$brokenOk bøker=$booksAfter tegninger=$drawingsOk",
         )
         app.repo.deleteBook(copyId)
     }

@@ -23,13 +23,17 @@ function layout(id) {
   });
 }
 
-function message(id, model) {
+const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200"><rect x="5" y="5" width="290" height="190" rx="12" fill="#F4C766"/>' +
+  '<path d="M20 100 Q 60 20 100 100 T 180 100 T 260 100" fill="none" stroke="#222" stroke-width="3"/>' +
+  '<text x="150" y="40" text-anchor="middle" font-family="serif" font-size="18">Bokhylla</text></svg>';
+
+function message(id, model, text) {
   return {
     id: `msg_test_${id}`,
     type: 'message',
     role: 'assistant',
     model,
-    content: [{ type: 'text', text: layout(id), citations: null }],
+    content: [{ type: 'text', text: text ?? layout(id), citations: null }],
     stop_reason: 'end_turn',
     stop_sequence: null,
     stop_details: null,
@@ -96,6 +100,15 @@ const server = http.createServer((req, res) => {
       if (req.method === 'POST' && url === '/v1/messages') {
         calls.messages++;
         const body = JSON.parse(data);
+        const system = Array.isArray(body.system) ? body.system.map((s) => s.text).join(' ') : String(body.system ?? '');
+        if (system.includes('SVG')) {
+          calls.draw = (calls.draw ?? 0) + 1;
+          if (!body.messages?.[0]?.content?.some((c) => c.type === 'image' && c.source?.data?.length > 500)) {
+            return send(res, 400, { type: 'error', error: { type: 'invalid_request_error', message: 'mangler figurbildet' } });
+          }
+          console.log(`mock: tegning (${body.model})`);
+          return send(res, 200, message('tegning', body.model, 'Her er tegningen:\n' + SVG));
+        }
         console.log(`mock: enkeltkall (${body.model}), fallbacks=${JSON.stringify(body.fallbacks)}`);
         return send(res, 200, message('enkelt', body.model));
       }

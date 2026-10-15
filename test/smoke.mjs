@@ -226,6 +226,22 @@ if (!single) fail('enkeltkallet til Claude ble ikke logget');
 assertAlive();
 console.log('Claude OK');
 
+// 5b. Tegn figurene på nytt (SVG fra testserveren), og tilbake til fotoet for én figur.
+sh('adb logcat -c');
+sh(`adb shell am broadcast -n ${PKG}/.TestReceiver -a ${PKG}.TEST_DRAW`);
+let drawLine = '';
+for (let i = 0; i < 60 && !drawLine; i++) { await sleep(2000); drawLine = (log().match(/test: tegning .*/) || [''])[0]; }
+console.log('  ' + (drawLine || 'ingen svar fra tegnetesten'));
+const dm = drawLine.match(/kandidater=(\d+) status=(\w+) tegnet=(\d+) bilde=(\d+)x(\d+) foto=(\w+) etter=(\d+)/);
+if (!dm) fail('tegnetesten ga ikke svar: ' + drawLine);
+const [, cand, wstate, drawn, bw, bh, photoKept, afterRevert] = dm;
+if (wstate !== 'SUCCEEDED' || +drawn !== +cand || +drawn < 1) fail(`figurene ble ikke tegnet på nytt: ${drawLine}`);
+if (+bw < 800 || +bh < 100) fail('tegningen ble ikke gjort om til et bilde: ' + drawLine);
+if (photoKept !== 'true') fail('fotoet ble ikke tatt vare på: ' + drawLine);
+if (+afterRevert !== +drawn - 1) fail('«Bruk fotoet igjen» virket ikke: ' + drawLine);
+assertAlive();
+console.log('Tegning OK');
+
 // 6. Leseren: åpne boka, bla med trykk i høyre tredjedel, åpne menyen i midten.
 sh(`adb shell am force-stop ${PKG}`);
 sh(`adb shell am start -W -n ${PKG}/.MainActivity`);
@@ -271,6 +287,7 @@ if (!backupLine) fail('sikkerhetskopi-testen ga ikke svar');
 if (!/uuid=true/.test(backupLine) || !/sider=(\d+)\/\1 /.test(backupLine) || !/tekst=true/.test(backupLine)) fail('eksport/import ga ikke samme bok: ' + backupLine);
 if (/figurer=0 /.test(backupLine)) fail('figurene ble ikke med i eksporten');
 if (!/skadet=true/.test(backupLine)) fail('skadet fil ble ikke avvist');
+if (!/tegninger=true/.test(backupLine)) fail('tegnede figurer fulgte ikke med i eksporten');
 const epubSize = +(backupLine.match(/epub=(\d+)/) || [0, 0])[1];
 if (epubSize < 1000) fail('EPUB-filen er for liten');
 assertAlive();

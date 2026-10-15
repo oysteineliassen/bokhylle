@@ -116,7 +116,8 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
 
     var menu by remember { mutableStateOf(false) }
     var footnote by remember { mutableStateOf<Pair<Int, String>?>(null) }
-    var figure by remember { mutableStateOf<Pair<String, String?>?>(null) }
+    // Figuren som vises i fullskjerm: bildet, beskrivelsen og siden den står på.
+    var figure by remember { mutableStateOf<Triple<String, String?, Long?>?>(null) }
     var showOriginal by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var goTo by remember { mutableStateOf(false) }
@@ -209,7 +210,7 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
                 ) {
                     ScreenContent(
                         screen, styles, theme,
-                        onFigure = { path, d -> figure = path to d },
+                        onFigure = { path, d -> figure = Triple(path, d, page.id) },
                         onPrev = { scope.launch { if (pagerState.currentPage > 0) pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
                         onNext = { scope.launch { if (pagerState.currentPage < list.size - 1) pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
                     )
@@ -333,7 +334,7 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
                 confirmButton = { TextButton(onClick = { footnote = null }) { Text("Lukk") } },
             )
         }
-        figure?.let { (path, description) -> FigureDialog(path, description) { figure = null } }
+        figure?.let { (path, description, pageId) -> FigureDialog(path, description, pageId, b.claudeModell) { figure = null } }
     }
 }
 

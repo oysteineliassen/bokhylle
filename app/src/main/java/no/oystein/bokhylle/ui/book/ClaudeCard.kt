@@ -1,5 +1,10 @@
 package no.oystein.bokhylle.ui.book
 
+import no.oystein.bokhylle.claude.DrawWorker
+import no.oystein.bokhylle.claude.ClaudeDraw
+import kotlinx.coroutines.flow.map
+import androidx.work.WorkManager
+import androidx.work.WorkInfo
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -144,6 +149,7 @@ fun ClaudeCard(book: Book, pages: List<Page>, onOpenSettings: () -> Unit) {
                     Text("Analyser hele boka på nytt")
                 }
             }
+            DrawFiguresRow(book, pages, model)
             if (usage.kostnadUsd > 0) {
                 Text("Brukt på denne boka: ${formatUsd(usage.kostnadUsd)}", style = MaterialTheme.typography.bodySmall)
             }
@@ -166,6 +172,58 @@ fun ClaudeCard(book: Book, pages: List<Page>, onOpenSettings: () -> Unit) {
                 TextButton(onClick = { app.claude.submitBook(book.id, list.map { it.id }); confirm = null }) { Text("Send") }
             },
             dismissButton = { TextButton(onClick = { confirm = null }) { Text("Avbryt") } },
+        )
+    }
+}
+
+/** «Tegn diagrammene på nytt»: alle figurer i boka tegnes som rene vektortegninger (fotografier hoppes over). */
+@Composable
+private fun DrawFiguresRow(book: Book, pages: List<Page>, model: ClaudeModel) {
+    val context = LocalContext.current
+    val candidates = remember(pages) { DrawWorker.candidates(context, pages) }
+    val info by remember(book.id) {
+        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(DrawWorker.bookWorkName(book.id)).map { it.firstOrNull() }
+    }.collectAsState(initial = null)
+    var ask by remember { mutableStateOf(false) }
+    val state = info?.state
+    when {
+        state == WorkInfo.State.RUNNING || state == WorkInfo.State.ENQUEUED -> {
+            val p = info?.progress
+            Text(
+                "Tegner figurer på nytt: ${p?.getInt(DrawWorker.KEY_DONE, 0) ?: 0} av ${p?.getInt(DrawWorker.KEY_TOTAL, 0) ?: 0}" +
+                    (if (state == WorkInfo.State.ENQUEUED) " (venter på nett)" else ""),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        candidates > 0 -> {
+            OutlinedButton(onClick = { ask = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("Tegn diagrammene på nytt ($candidates figurer)")
+            }
+            if (state == WorkInfo.State.SUCCEEDED) {
+                Text("Sist: ${info?.outputData?.getInt(DrawWorker.KEY_DRAWN, 0) ?: 0} figurer tegnet på nytt.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        state == WorkInfo.State.SUCCEEDED -> Text(
+            "${info?.outputData?.getInt(DrawWorker.KEY_DRAWN, 0) ?: 0} figurer er tegnet på nytt. Trykk på en figur i leseren for å bytte tilbake til fotoet.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+    if (ask) {
+        AlertDialog(
+            onDismissRequest = { ask = false },
+            title = { Text("Tegne $candidates figurer på nytt?") },
+            text = {
+                Text(
+                    "Claude tegner diagrammer, grafer og enkle tegninger som rene vektortegninger. Fotografier og " +
+                        "detaljerte illustrasjoner hoppes over og beholdes som foto.\n\n" +
+                        "Modell: ${model.name}. Anslått kostnad: opptil ca. ${formatUsd(ClaudeDraw.estimate(model, candidates))} " +
+                        "(${formatUsd(ClaudeDraw.estimate(model, 1))} per figur).\n\n" +
+                        "Tegningene tas i bruk med en gang. Fotoene tas vare på: trykk på en figur i leseren og velg " +
+                        "«Bruk fotoet igjen» for å bytte tilbake.",
+                )
+            },
+            confirmButton = { TextButton(onClick = { DrawWorker.book(context, book.id); ask = false }) { Text("Tegn") } },
+            dismissButton = { TextButton(onClick = { ask = false }) { Text("Avbryt") } },
         )
     }
 }

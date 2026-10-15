@@ -112,6 +112,8 @@ dependencies {
     ksp("androidx.room:room-compiler:$room")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
+    // SVG fra «Tegn figuren på nytt» gjøres om til bilder.
+    implementation("com.caverock:androidsvg-aar:1.4")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("androidx.documentfile:documentfile:1.0.1")

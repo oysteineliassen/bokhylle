@@ -1,5 +1,20 @@
 package no.oystein.bokhylle.ui.reader
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import kotlinx.coroutines.launch
+import no.oystein.bokhylle.app
+import no.oystein.bokhylle.claude.ClaudeDraw
+import no.oystein.bokhylle.claude.ClaudeModel
+import no.oystein.bokhylle.claude.DrawWorker
+import no.oystein.bokhylle.claude.formatUsd
+import no.oystein.bokhylle.data.PageImages
+import java.util.UUID
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -83,18 +98,81 @@ fun ZoomableImage(path: String, description: String?, modifier: Modifier = Modif
 }
 
 @Composable
-fun FigureDialog(path: String, description: String?, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+fun FigureDialog(path: String, description: String?, pageId: Long?, modelId: String?, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val app = context.app
+    val scope = rememberCoroutineScope()
+    val drawing = PageImages.isDrawing(path)
+    var work by remember { mutableStateOf<UUID?>(null) }
+    var info by remember { mutableStateOf<WorkInfo?>(null) }
+    work?.let { id -> LaunchedEffect(id) { WorkManager.getInstance(context).getWorkInfoByIdFlow(id).collect { info = it } } }
+    val proposal = info?.takeIf { it.state == WorkInfo.State.SUCCEEDED }?.outputData?.getString(DrawWorker.KEY_DRAWING)
+
+    fun discardProposal() {
+        info?.outputData?.let { out ->
+            out.getString(DrawWorker.KEY_DRAWING)?.let { File(it).delete() }
+            out.getString(DrawWorker.KEY_SVG)?.let { File(it).delete() }
+        }
+    }
+
+    Dialog(onDismissRequest = { discardProposal(); onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
-            ZoomableImage(path, description, Modifier.fillMaxSize())
-            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding()) {
-                Icon(Icons.Default.Close, "Lukk", tint = Color.White)
-            }
-            if (description != null) {
-                Text(
-                    description, color = Color.White,
-                    modifier = Modifier.align(Alignment.BottomCenter).background(Color.Black.copy(alpha = 0.6f)).navigationBarsPadding().padding(16.dp),
-                )
+            if (proposal != null) {
+                // Foto og tegning side om side (over hverandre på en stående skjerm).
+                Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Foto", color = Color.White)
+                    AsyncImage(model = File(path), contentDescription = "Foto", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().weight(1f))
+                    Text("Tegnet på nytt", color = Color.White)
+                    AsyncImage(model = File(proposal), contentDescription = "Tegning", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().weight(1f))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = { if (pageId != null) scope.launch { app.repo.useDrawing(pageId, path, proposal); onDismiss() } },
+                            modifier = Modifier.weight(1f).semantics { contentDescription = "Bruk tegningen" },
+                        ) { Text("Bruk tegningen") }
+                        OutlinedButton(onClick = { discardProposal(); onDismiss() }, modifier = Modifier.weight(1f)) {
+                            Text("Behold fotoet", color = Color.White)
+                        }
+                    }
+                }
+            } else {
+                ZoomableImage(path, description, Modifier.fillMaxSize())
+                IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding()) {
+                    Icon(Icons.Default.Close, "Lukk", tint = Color.White)
+                }
+                Column(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.6f)).navigationBarsPadding().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (description != null) Text(description, color = Color.White)
+                    val state = info?.state
+                    if (pageId != null) when {
+                        drawing -> OutlinedButton(onClick = { scope.launch { app.repo.usePhoto(pageId, path); onDismiss() } }) {
+                            Text("Bruk fotoet igjen", color = Color.White)
+                        }
+                        state == WorkInfo.State.RUNNING || state == WorkInfo.State.ENQUEUED -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                            Text(
+                                if (state == WorkInfo.State.ENQUEUED) "  Venter på nett …" else "  Claude tegner figuren (tar gjerne et minutt) …",
+                                color = Color.White,
+                            )
+                        }
+                        state == WorkInfo.State.SUCCEEDED -> Text(
+                            "Claude mener dette er et fotografi eller en detaljert illustrasjon, så fotoet beholdes.",
+                            color = Color.White,
+                        )
+                        !app.claude.hasKey -> Text("Legg inn en API-nøkkel i Innstillinger for å tegne figuren på nytt.", color = Color.White)
+                        else -> {
+                            if (state == WorkInfo.State.FAILED) {
+                                Text("Det gikk ikke: ${info?.outputData?.getString(DrawWorker.KEY_ERROR) ?: "ukjent feil"}", color = Color.White)
+                            }
+                            val cost = formatUsd(ClaudeDraw.estimate(ClaudeModel.of(modelId), 1))
+                            OutlinedButton(
+                                onClick = { work = DrawWorker.one(context, pageId, path) },
+                                modifier = Modifier.semantics { contentDescription = "Tegn på nytt" },
+                            ) { Text("Tegn på nytt (ca. $cost)", color = Color.White) }
+                        }
+                    }
+                }
             }
         }
     }

@@ -113,6 +113,9 @@ interface PageDao {
     )
     suspend fun updateOrder(id: Long, index: Int, flagged: Boolean, reasons: String, inferred: String?, number: String?)
 
+    @Query("UPDATE pages SET layoutJson = :layout WHERE id = :id")
+    suspend fun setLayoutJson(id: Long, layout: String)
+
     @Query("UPDATE pages SET layoutJson = :layout, ryddetTekst = :clean, sokeTekst = :search, ocrKilde = :source WHERE id = :id")
     suspend fun updateLayout(id: Long, layout: String, clean: String, search: String, source: String)
 
