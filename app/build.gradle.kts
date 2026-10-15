@@ -65,6 +65,8 @@ android {
 
     // Testmottakeren (røyktesten i CI) er bare med i debug-bygget.
     sourceSets {
+        // verktoy/tegninger.py legges i figurfilen, så en ny chat kan pakke tegningene uten repoet.
+        getByName("main").assets.srcDir("../verktoy")
         for (name in listOf("debug", "qa")) {
             maybeCreate(name).apply {
                 java.srcDir("src/testkit/java")

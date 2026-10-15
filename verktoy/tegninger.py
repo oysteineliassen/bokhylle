@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Figurer tegnet på nytt i en chat (uten API): pakk ut en .bokhylle-figurer-fil og pakk tegningene tilbake.
 
-  python3 verktoy/tegninger.py pakk-ut  Bok.bokhylle-figurer  mappe/
+  python3 tegninger.py pakk-ut  "Bok bokhylle-figurer.zip"  mappe/
       Pakker ut figurer/, kontekst/ og figurer.json, og lister figurene (nøkkel, side, beskrivelse).
-  python3 verktoy/tegninger.py pakk     mappe/  Bok.bokhylle-tegninger
+  python3 tegninger.py pakk     mappe/  "Bok bokhylle-tegninger.zip"
       Lager tegningsfilen av mappe/tegninger/<nøkkel>.svg (figurer uten SVG hoppes over, f.eks. fotografier).
 
+Skriptet ligger også i hver figurfil, sammen med oppskriften LES-MEG.md.
 Filformatet er beskrevet i app/src/main/java/no/oystein/bokhylle/backup/FigureExchange.kt.
 """
 import json
@@ -24,7 +25,7 @@ def pakk_ut(src, dst):
         z.extractall(dst)
     meta = json.loads((dst / "figurer.json").read_text())
     if meta.get("format") != "bokhylle-figurer":
-        raise SystemExit("ikke en .bokhylle-figurer-fil")
+        raise SystemExit("ikke en Bokhylle-figurfil")
     print(f"«{meta.get('title')}»: {len(meta['figures'])} figurer")
     for f in meta["figures"]:
         print(f"  {f['key']}  side {f.get('pageNumber') or '?'}  {f.get('description') or ''}"

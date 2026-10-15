@@ -252,9 +252,10 @@ sh(`adb shell am broadcast -n ${PKG}/.TestReceiver -a ${PKG}.TEST_FIGURES`);
 let figLine = '';
 for (let i = 0; i < 30 && !figLine; i++) { await sleep(1500); figLine = (log().match(/test: figurfil .*/) || [''])[0]; }
 console.log('  ' + (figLine || 'ingen svar fra figurfiltesten'));
-const fm = figLine.match(/eksportert=(\d+) kontekst=(\d+) importert=(\d+) hoppet=(\d+) annenbok=(\w+) tegninger=(\d+)/);
+const fm = figLine.match(/eksportert=(\d+) kontekst=(\d+) importert=(\d+) hoppet=(\d+) annenbok=(\w+) oppskrift=(\w+) tegninger=(\d+)/);
 if (!fm) fail('figurfiltesten ga ikke svar: ' + figLine);
-const [, fExported, fContext, fAdded, fSkipped, fWrongBook, fDrawings] = fm;
+const [, fExported, fContext, fAdded, fSkipped, fWrongBook, fRecipe, fDrawings] = fm;
+if (fRecipe !== 'true') fail('figurfilen mangler oppskriften (LES-MEG.md / tegninger.py): ' + figLine);
 if (+fExported !== 1 || +fContext !== 1) fail('figurfilen skulle hatt den ene figuren som ikke er tegnet, med utsnitt: ' + figLine);
 if (+fAdded !== 1 || +fSkipped !== 1) fail('tegningene ble ikke lagt inn (eller den ukjente ble ikke hoppet over): ' + figLine);
 if (fWrongBook !== 'true') fail('tegninger for en annen bok ble ikke avvist: ' + figLine);

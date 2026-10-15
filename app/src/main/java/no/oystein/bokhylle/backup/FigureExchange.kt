@@ -23,7 +23,7 @@ import java.util.zip.ZipOutputStream
 
 /**
  * Figurer tegnes på nytt i en chat i stedet for via API-et (sparer API-kreditt):
- * «Eksporter figurer til tegning» lager en .bokhylle-figurer-fil (figurbildene, et utsnitt av siden rundt hver
+ * «Eksporter figurer til tegning» lager en figurfil (zip med LES-MEG.md, tegninger.py, figurbildene, et utsnitt av siden rundt hver
  * figur med figuren markert i rødt, beskrivelser og bildetekster). Tilbake kommer en .bokhylle-tegninger-fil
  * med én SVG per figur, som «Importer tegninger» legger inn i boka (fotoene tas vare på, som ved «Tegn på nytt»).
  *
@@ -62,6 +62,9 @@ object FigureExchange {
         val list = figures(app.db.pages().forBook(bookId))
         ZipOutputStream(out.buffered()).use { zip ->
             fun put(name: String, bytes: ByteArray) { zip.putNextEntry(ZipEntry(name)); zip.write(bytes); zip.closeEntry() }
+            // Først i arkivet: oppskriften for den som tegner (en ny chat skal skjønne oppgaven uten mer forklaring).
+            put("LES-MEG.md", recipe(book.tittel, list.size).toByteArray())
+            app.assets.open(TOOL).use { put(TOOL, it.readBytes()) }
             fun jpeg(bitmap: Bitmap): ByteArray = java.io.ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }.toByteArray()
             val entries = list.map { f ->
                 ImageOps.decode(f.image)?.let { put("figurer/${f.key}.jpg", jpeg(it)); it.recycle() }
@@ -126,15 +129,59 @@ object FigureExchange {
         return ImportResult(added, skipped)
     }
 
-    /** Står i figurer.json, så den som tegner (Claude i en chat) vet hva som skal leveres tilbake. */
-    private val INSTRUCTIONS = """
+    private const val TOOL = "tegninger.py"
+
+    /** Oppskriften som ligger først i figurfilen (LES-MEG.md). */
+    private fun recipe(title: String, count: Int) = """
+        # Oppgave: tegn figurene i «$title» på nytt
+
+        Denne zip-filen er eksportert fra Bokhylle, en Android-app som gjør fotograferte bøker om til e-bøker.
+        Den inneholder $count figurer klippet ut av fotografier av boksidene. Oppgaven er å tegne hver figur på nytt
+        som en ren vektortegning (SVG) og levere en ny zip-fil som brukeren importerer i appen med
+        «Importer tegninger». Gjør hele jobben uten å spørre først, og svar brukeren på norsk.
+
+        ## Fremgangsmåte
+
+        1. Pakk ut filen og list figurene (Python 3, ingen ekstra pakker):
+           `python3 tegninger.py pakk-ut "<denne filen>" arbeid/`
+           (`tegninger.py` ligger i denne zip-filen; pakk den ut først, f.eks. med `unzip -o <fil> tegninger.py`.)
+        2. For hver figur i `arbeid/figurer.json`: se på `arbeid/figurer/<key>.jpg` (figuren) og
+           `arbeid/kontekst/<key>.jpg` (siden rundt, med figuren markert med rød ramme). Les også `description`
+           og `caption`.
+        3. Tegn figuren som én selvstendig SVG og lagre den som `arbeid/tegninger/<key>.svg`.
+        4. Pakk tegningene: `python3 tegninger.py pakk arbeid/ "$title bokhylle-tegninger.zip"`
+           (figurer uten SVG hoppes over).
+        5. Gi brukeren zip-filen fra steg 4 som en nedlastbar fil, og si hvor mange figurer som ble tegnet og
+           hvilke som ble hoppet over (og hvorfor). Brukeren lagrer filen og velger «Importer tegninger» i appen.
+
+        ## Krav til tegningene
+
+        - $DRAW_RULES
+        - Tegn bare diagrammer, kart, grafer, skisser og enkle tegninger. Hopp over fotografier og detaljerte
+          illustrasjoner (de beholdes som foto i appen).
+        - Kontekstbildet viser hvor figuren slutter: ta med etiketter og piler som stikker utenfor den røde rammen,
+          men ikke brødtekst, overskrifter eller bildeteksten.
+
+        ## Format på filen som leveres
+
+        En zip med `tegninger.json` og SVG-filene:
+        `{"format":"$DRAWINGS_FORMAT","version":$VERSION,"book":<book fra figurer.json>,"drawings":[{"key":<key>,"svg":"tegninger/<key>.svg"}]}`
+        `tegninger.py pakk` lager nøyaktig dette. Nøklene og `book` må være uendret, ellers avviser appen tegningene.
+    """.trimIndent() + "\n"
+
+    /** Krav til tegningene (også i LES-MEG.md). */
+    private val DRAW_RULES = """
         Tegn hver figur på nytt som én selvstendig SVG (viewBox, bare path/line/polyline/polygon/rect/circle/ellipse/
         text/tspan/g/linearGradient; ingen <image> eller skript). Gjengi figuren trofast (former, farger, all tekst
-        nøyaktig som i boka), rett opp skjevhet fra fotoet, uten skygger og gjennomslag. Kontekstbildet viser siden
-        rundt figuren med figuren markert i rødt: ta med etiketter og piler som stikker utenfor rammen, men ikke
-        brødtekst, overskrifter eller bildeteksten (den vises for seg). Hopp over fotografier og detaljerte
-        illustrasjoner. Lever en zip med filendelsen .$DRAWINGS_EXTENSION som inneholder tegninger.json
-        {"format":"$DRAWINGS_FORMAT","version":$VERSION,"book":<samme book som her>,"drawings":[{"key":<key>,"svg":"tegninger/<key>.svg"}]}
-        og SVG-filene.
+        nøyaktig som i boka), rett opp skjevhet fra fotoet, uten skygger og gjennomslag.
+    """.trimIndent().replace("\n", " ")
+
+    /** Står i figurer.json, så den som tegner vet hva som skal leveres tilbake. */
+    private val INSTRUCTIONS = DRAW_RULES + " " + """
+        Kontekstbildet viser siden rundt figuren med figuren markert i rødt: ta med etiketter og piler som stikker
+        utenfor rammen, men ikke brødtekst, overskrifter eller bildeteksten (den vises for seg). Hopp over fotografier
+        og detaljerte illustrasjoner. Lever en zip (navnet slutter på $DRAWINGS_EXTENSION.zip) som inneholder
+        tegninger.json {"format":"$DRAWINGS_FORMAT","version":$VERSION,"book":<samme book som her>,
+        "drawings":[{"key":<key>,"svg":"tegninger/<key>.svg"}]} og SVG-filene. Se LES-MEG.md.
     """.trimIndent().replace("\n", " ")
 }

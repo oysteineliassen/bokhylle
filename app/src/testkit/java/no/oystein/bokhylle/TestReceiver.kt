@@ -125,11 +125,15 @@ class TestReceiver : BroadcastReceiver() {
         val exported = figFile.outputStream().use { no.oystein.bokhylle.backup.FigureExchange.export(app, book.id, it) }
         var manifest: Map<String, Any?>? = null
         var contexts = 0
+        var readme = false
+        var tool = false
         java.util.zip.ZipInputStream(figFile.inputStream()).use { zip ->
             while (true) {
                 val e = zip.nextEntry ?: break
                 if (e.name == "figurer.json") manifest = no.oystein.bokhylle.core.Json.parse(String(zip.readBytes())).obj()
                 if (e.name.startsWith("kontekst/")) contexts++
+                if (e.name == "LES-MEG.md") readme = String(zip.readBytes()).contains("tegninger.py pakk")
+                if (e.name == "tegninger.py") tool = String(zip.readBytes()).contains("def pakk")
             }
         }
         val keys = manifest?.get("figures").arr().mapNotNull { it.obj()?.get("key") as? String }
@@ -154,7 +158,7 @@ class TestReceiver : BroadcastReceiver() {
             try { drawFile.inputStream().use { no.oystein.bokhylle.backup.FigureExchange.importDrawings(app, other, it) } } finally { app.repo.deleteBook(other) }
         }.isFailure
         Log.d(TAG, "test: figurfil eksportert=$exported kontekst=$contexts importert=${result.added} hoppet=${result.skipped} " +
-            "annenbok=$wrongBook tegninger=${drawings(app.db.pages().forBook(book.id))}")
+            "annenbok=$wrongBook oppskrift=${readme && tool} tegninger=${drawings(app.db.pages().forBook(book.id))}")
     }
 
     /**
