@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
@@ -19,6 +20,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import no.oystein.bokhylle.core.BlockType
 import no.oystein.bokhylle.core.PageLayout
+import no.oystein.bokhylle.core.TocLinks
 
 enum class TextKind { HEADING, PARAGRAPH, CAPTION }
 
@@ -65,11 +67,14 @@ class Paginator(
     private val width: Int,
     private val height: Int,
     private val onFootnote: (pageIndex: Int, number: String) -> Unit,
+    /** Trykk på en oppføring i innholdsfortegnelsen: sidetallet den viser til. */
+    private val onPageLink: (page: Int) -> Unit = {},
 ) {
     private val spacing = styles.spacing(density)
     private val boxPad = styles.boxPadding(density)
 
     fun paginate(pageIndex: Int, layout: PageLayout): List<Screen> {
+        toc = TocLinks.isTocPage(layout)
         val screens = mutableListOf<Screen>()
         var items = mutableListOf<ScreenItem>()
         var used = 0f
@@ -184,8 +189,27 @@ class Paginator(
         return if (o.outWidth > 0 && o.outHeight > 0) o.outWidth.toFloat() / o.outHeight else null
     }
 
-    /** Fotnotereferanser «[^n]» blir hevet skrift som kan trykkes på. */
-    fun annotate(text: String, pageIndex: Int): AnnotatedString = buildAnnotatedString {
+    /** Siden som pagineres nå er en innholdsfortegnelse: oppføringene gjøres trykkbare i [annotate]. */
+    private var toc = false
+
+    /**
+     * Fotnotereferanser «[^n]» blir hevet skrift som kan trykkes på. I en innholdsfortegnelse blir hver oppføring
+     * en lenke til siden den viser til (sidetallet understrekes).
+     */
+    fun annotate(text: String, pageIndex: Int): AnnotatedString {
+        val notes = footnotes(text, pageIndex)
+        if (!toc) return notes
+        val entries = TocLinks.entries(notes.text)
+        if (entries.isEmpty()) return notes
+        return AnnotatedString.Builder(notes).apply {
+            for (e in entries) {
+                addLink(LinkAnnotation.Clickable("side:${e.page}") { onPageLink(e.page) }, e.range.first, e.range.last + 1)
+                addStyle(SpanStyle(textDecoration = TextDecoration.Underline), e.numberStart, e.range.last + 1)
+            }
+        }.toAnnotatedString()
+    }
+
+    private fun footnotes(text: String, pageIndex: Int): AnnotatedString = buildAnnotatedString {
         var last = 0
         for (m in PageLayout.FOOTNOTE_REF.findAll(text)) {
             append(text.substring(last, m.range.first))

@@ -84,6 +84,7 @@ import kotlinx.coroutines.withContext
 import no.oystein.bokhylle.app
 import no.oystein.bokhylle.data.Page
 import no.oystein.bokhylle.data.sidetallVisning
+import no.oystein.bokhylle.core.TocLinks
 import java.io.File
 
 /** Skjermside-nummer for markeringen av manglende sider (skiller den fra boksidens egne skjermsider). */
@@ -121,6 +122,8 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
     var showOriginal by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var goTo by remember { mutableStateOf(false) }
+    // Sidetallet i en oppføring i innholdsfortegnelsen som er trykket på.
+    var tocTarget by remember { mutableStateOf<Int?>(null) }
     var screens by remember { mutableStateOf<List<Screen>?>(null) }
     // Boksiden vi står på; brukes til å finne igjen plassen når teksten pagineres på nytt.
     var anchorPage by remember { mutableStateOf(startPageId) }
@@ -144,7 +147,11 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
         val pagerState = rememberPagerState { screens?.size ?: 0 }
 
         LaunchedEffect(pages, settings, widthPx, heightPx, missing) {
-            val paginator = Paginator(measurer, density, styles, widthPx, heightPx) { pageIndex, number -> footnote = pageIndex to number }
+            val paginator = Paginator(
+                measurer, density, styles, widthPx, heightPx,
+                onFootnote = { pageIndex, number -> footnote = pageIndex to number },
+                onPageLink = { number -> tocTarget = number },
+            )
             val result = withContext(Dispatchers.Default) {
                 pages.flatMapIndexed { i, p ->
                     // Ny innstilling mens vi holder på: stopp, den nye pagineringen tar over.
@@ -298,6 +305,15 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
                 onReset = { vm.saveEdit(currentPage, null); editing = false },
                 onDismiss = { editing = false },
             )
+        }
+        tocTarget?.let { number ->
+            LaunchedEffect(number) {
+                tocTarget = null
+                val pageIndex = TocLinks.targetIndex(number, pages.map { it.sidetallVisning })
+                val idx = pageIndex?.let { pi -> list.indexOfFirst { it.pageIndex == pi } } ?: -1
+                if (idx >= 0) pagerState.scrollToPage(idx)
+                else android.widget.Toast.makeText(context, "Fant ikke side $number i boka", android.widget.Toast.LENGTH_SHORT).show()
+            }
         }
         if (goTo) {
             var text by remember { mutableStateOf("") }
