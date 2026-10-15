@@ -80,7 +80,7 @@ fun figurePairs(pages: List<Page>): List<FigurePair> = pages.filter { it.status 
 fun FigureCompareScreen(bookId: Long, onBack: () -> Unit) {
     val app = LocalContext.current.app
     val scope = rememberCoroutineScope()
-    val pages by remember(bookId) { app.db.pages().observe(bookId) }.collectAsState<List<Page>?>(initial = null)
+    val pages by remember(bookId) { app.db.pages().observe(bookId) }.collectAsState<List<Page>, List<Page>?>(initial = null)
     val pairs = remember(pages) { figurePairs(pages.orEmpty()) }
     var zoom by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
