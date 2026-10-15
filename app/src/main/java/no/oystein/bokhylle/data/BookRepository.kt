@@ -204,8 +204,13 @@ class BookRepository(
     suspend fun useDrawing(pageId: Long, photo: String, drawing: String) {
         val page = db.pages().get(pageId) ?: return
         val layout = no.oystein.bokhylle.core.PageLayout.decode(page.layoutJson) ?: return
-        val blocks = layout.blocks.map { if (it.image == photo) it.copy(image = drawing, photo = photo) else it }
+        // [photo] er bildet figuren har nå. Er det en tegning, erstattes den, og det opprinnelige fotoet beholdes.
+        val blocks = layout.blocks.map { if (it.image == photo) it.copy(image = drawing, photo = it.photo ?: photo) else it }
         db.pages().setLayoutJson(pageId, layout.copy(blocks = blocks).encode())
+        if (PageImages.isDrawing(photo) && photo != drawing) {
+            files.delete(photo)
+            files.delete(photo.removeSuffix(".webp") + ".svg")
+        }
         db.books().touch(page.bookId)
         processor.rebuild(page.bookId)
     }

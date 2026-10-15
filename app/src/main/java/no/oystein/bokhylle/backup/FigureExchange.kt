@@ -44,12 +44,13 @@ object FigureExchange {
 
     private data class Figure(val page: Page, val key: String, val image: String, val description: String?, val caption: String?, val box: Box)
 
-    private fun figures(pages: List<Page>): List<Figure> = pages.filter { it.status == Page.STATUS_FERDIG }.flatMap { p ->
+    /** Figurene i boka som ikke er tegnet ennå; med [includeDrawn] også de som er tegnet (nye tegninger erstatter dem). */
+    private fun figures(pages: List<Page>, includeDrawn: Boolean = false): List<Figure> = pages.filter { it.status == Page.STATUS_FERDIG }.flatMap { p ->
         val blocks = PageLayout.decode(p.layoutJson)?.blocks.orEmpty()
         blocks.mapIndexedNotNull { i, b ->
             val image = b.image ?: return@mapIndexedNotNull null
             val box = b.box ?: return@mapIndexedNotNull null
-            if (b.type != BlockType.FIGURE || PageImages.isDrawing(image) || !File(image).exists()) return@mapIndexedNotNull null
+            if (b.type != BlockType.FIGURE || (!includeDrawn && PageImages.isDrawing(image)) || !File(image).exists()) return@mapIndexedNotNull null
             Figure(p, keyOf(p.id, box), image, b.description, blocks.getOrNull(i + 1)?.takeIf { it.type == BlockType.CAPTION }?.text, box)
         }
     }
@@ -108,7 +109,7 @@ object FigureExchange {
         val m = manifest ?: throw BackupFormatException("Filen er ikke en Bokhylle-tegningsfil (mangler tegninger.json)")
         if (m["format"] != DRAWINGS_FORMAT) throw BackupFormatException("Ukjent filformat")
         if (m["book"] != book.uuid) throw BackupFormatException("Tegningene hører til en annen bok")
-        val byKey = figures(app.db.pages().forBook(bookId)).associateBy { it.key }
+        val byKey = figures(app.db.pages().forBook(bookId), includeDrawn = true).associateBy { it.key }
         var added = 0
         var skipped = 0
         for (d in m["drawings"].arr().mapNotNull { it.obj() }) {

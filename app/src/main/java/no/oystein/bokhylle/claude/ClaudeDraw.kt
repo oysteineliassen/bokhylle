@@ -100,6 +100,9 @@ object ClaudeDraw {
         }.coerceIn(0.1f, 4f)
         val height = (width * aspect).roundToInt()
         if (box == null && doc.documentWidth > 0f) doc.setDocumentViewBox(0f, 0f, doc.documentWidth, doc.documentHeight)
+        // Faste width/height på <svg> ville ellers tegnet figuren i den størrelsen, med hvitt rundt.
+        doc.setDocumentWidth("100%")
+        doc.setDocumentHeight("100%")
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.WHITE)
