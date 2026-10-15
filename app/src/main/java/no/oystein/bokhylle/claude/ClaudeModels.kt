@@ -1,5 +1,7 @@
 package no.oystein.bokhylle.claude
 
+import kotlin.math.roundToInt
+
 /** Modellene appen kan bruke, med listepriser (USD per million tokens, oktober 2026). */
 data class ClaudeModel(
     val id: String,
@@ -36,8 +38,23 @@ data class ClaudeModel(
     }
 }
 
-fun formatUsd(amount: Double): String = when {
-    amount < 0.01 -> "under 0,01 USD"
-    amount < 10 -> "%.2f USD".format(java.util.Locale("nb", "NO"), amount)
-    else -> "%.0f USD".format(java.util.Locale("nb", "NO"), amount)
+/** Omtrentlig dollarkurs for å vise prisene i kroner (API-et fakturerer i USD). */
+const val NOK_PER_USD = 10.5
+
+/** Beløp i kroner (omregnet), med dollar i parentes, f.eks. «53 øre (0,05 USD)». */
+fun formatUsd(amount: Double): String {
+    val nb = java.util.Locale("nb", "NO")
+    val nok = amount * NOK_PER_USD
+    val kroner = when {
+        nok < 0.01 -> "under 1 øre"
+        nok < 1 -> "${(nok * 100).roundToInt()} øre"
+        nok < 100 -> "%.2f kr".format(nb, nok)
+        else -> "%.0f kr".format(nb, nok)
+    }
+    val usd = when {
+        amount < 0.01 -> "under 0,01 USD"
+        amount < 10 -> "%.2f USD".format(nb, amount)
+        else -> "%.0f USD".format(nb, amount)
+    }
+    return "$kroner ($usd)"
 }
