@@ -51,7 +51,7 @@ data class Screen(val items: List<ScreenItem>, val pages: List<Int>) {
 }
 
 /** Stilene leseren bruker; deles av pagineringen og visningen, så målingene stemmer. */
-class ReaderStyles(settings: ReaderSettings) {
+class ReaderStyles(private val settings: ReaderSettings) {
     private val family = if (settings.serif) FontFamily.Serif else FontFamily.SansSerif
     val body = TextStyle(fontSize = settings.fontSize.sp, lineHeight = (settings.fontSize * settings.lineHeight).sp, fontFamily = family)
     private fun headingOf(scale: Float, weight: FontWeight = FontWeight.Bold) =
