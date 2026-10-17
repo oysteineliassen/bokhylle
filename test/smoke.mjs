@@ -321,6 +321,24 @@ shot('9-figur');
 sh('adb shell input keyevent KEYCODE_BACK');
 await sleep(800);
 assertAlive();
+// Langt trykk på en tekstlinje: marker setningen, og så (samme sted) sett bokmerke. Bla videre og gå tilbake til bokmerket.
+const longPress = (n) => sh(`adb shell input swipe ${n.x} ${n.y} ${n.x} ${n.y} 900`);
+const textLine = await need(/Tekst fra Claude for side/, 'en tekstlinje');
+longPress(textLine);
+tap(await need(/^Marker teksten$/, 'markeringsvalget etter langt trykk'));
+await sleep(1200);
+longPress(textLine);
+await need(/^Fjern markeringen$/, 'den lagrede markeringen');
+tap(await need(/^Sett bokmerke her$/, 'bokmerkevalget'));
+await sleep(1200);
+for (let k = 0; k < 2; k++) { sh(`adb shell input tap ${Math.round(W * 0.9)} ${Math.round(H / 2)}`); await sleep(900); }
+tap(await need(/^Gå til bokmerke$/, 'knappen for å gå til bokmerket'));
+await sleep(1200);
+if (await waitFor((n) => n.desc === 'Gå til bokmerke', 1500)) fail('gikk ikke til bokmerket');
+shot('10-bokmerke');
+// Bunnlinjen viser bokens sidetall og appens eget skjermsidenummer.
+await need(/^s\. .+ \d+ \/ \d+$/, 'bunnlinjen med sidetall og skjermsidenummer');
+assertAlive();
 console.log('Leser OK');
 
 // 7. Eksport/import og sikkerhetskopi (tur-retur på telefonen).

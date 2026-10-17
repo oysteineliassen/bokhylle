@@ -19,22 +19,35 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import no.oystein.bokhylle.core.BlockType
-import no.oystein.bokhylle.core.PageLayout
+import no.oystein.bokhylle.core.ReadingFlow
 import no.oystein.bokhylle.core.TocLinks
 
 enum class TextKind { HEADING, PARAGRAPH, CAPTION }
 
-/** Det som vises på én skjermside. */
+/** Det som vises på én skjermside. [block] er indeksen i lesestrømmen, [start] der utsnittet begynner i blokkens tekst. */
 sealed class ScreenItem {
-    data class Text(val text: AnnotatedString, val kind: TextKind) : ScreenItem()
-    data class Box(val title: String?, val text: AnnotatedString, val continued: Boolean) : ScreenItem()
-    data class Figure(val image: String?, val description: String?, val height: Float) : ScreenItem()
+    data class Text(val text: AnnotatedString, val kind: TextKind, val block: Int, val start: Int) : ScreenItem()
+    data class Box(val title: String?, val text: AnnotatedString, val continued: Boolean, val block: Int, val start: Int) : ScreenItem()
+    data class Figure(val image: String?, val description: String?, val height: Float, val page: Int) : ScreenItem()
     data object Empty : ScreenItem()
     /** Sider som ikke er lagt inn ennå (vises som egen skjermside der de mangler). */
     data class Missing(val label: String, val count: Int) : ScreenItem()
 }
 
-data class Screen(val pageIndex: Int, val part: Int, val items: List<ScreenItem>)
+/** Én skjermside: innholdet og boksidene (indekser) den viser tekst fra. */
+data class Screen(val items: List<ScreenItem>, val pages: List<Int>) {
+    /** Boksiden skjermsiden begynner på. */
+    val pageIndex get() = pages.first()
+
+    /** Har skjermsiden posisjonen [pos] i blokk [block] i lesestrømmen? */
+    fun contains(block: Int, pos: Int): Boolean = items.any {
+        when (it) {
+            is ScreenItem.Text -> it.block == block && pos >= it.start && pos <= it.start + it.text.length
+            is ScreenItem.Box -> it.block == block && pos >= it.start && pos <= it.start + it.text.length
+            else -> false
+        }
+    }
+}
 
 /** Stilene leseren bruker; deles av pagineringen og visningen, så målingene stemmer. */
 class ReaderStyles(settings: ReaderSettings) {
@@ -57,8 +70,9 @@ class ReaderStyles(settings: ReaderSettings) {
 }
 
 /**
- * Deler hver bokside i skjermsider som får plass uten scrolling. Avsnitt og faktabokser deles mellom linjer,
- * figurer flyttes til neste skjermside hvis de ikke får plass.
+ * Deler lesestrømmen (boksidene etter hverandre, se [ReadingFlow]) i skjermsider som får plass uten scrolling.
+ * Avsnitt og faktabokser deles mellom linjer, figurer flyttes til neste skjermside hvis de ikke får plass, og
+ * hovedkapitler begynner på ny skjermside.
  */
 class Paginator(
     private val measurer: TextMeasurer,
@@ -73,27 +87,29 @@ class Paginator(
     private val spacing = styles.spacing(density)
     private val boxPad = styles.boxPadding(density)
 
-    fun paginate(pageIndex: Int, layout: PageLayout): List<Screen> {
-        toc = TocLinks.isTocPage(layout)
+    fun paginate(flow: List<ReadingFlow.Block>, onEach: () -> Unit = {}): List<Screen> {
         val screens = mutableListOf<Screen>()
         var items = mutableListOf<ScreenItem>()
+        val pages = linkedSetOf<Int>()
         var used = 0f
         fun newScreen() {
-            screens += Screen(pageIndex, screens.size, items)
+            if (items.isEmpty()) return
+            screens += Screen(items, pages.toList().sorted())
             items = mutableListOf()
+            pages.clear()
             used = 0f
         }
         fun gap() = if (items.isEmpty()) 0f else spacing
 
-        // En figur uten egen bildetekst får beskrivelsen som tekst under, så man slipper å åpne figuren for å lese den.
-        val blocks = layout.blocks.filter { it.type != BlockType.FOOTNOTE }.let { list ->
-            list.flatMapIndexed { i, b ->
-                val described = b.type == BlockType.FIGURE && b.image != null && !b.description.isNullOrBlank() &&
-                    list.getOrNull(i + 1)?.type != BlockType.CAPTION
-                if (described) listOf(b, b.copy(type = BlockType.CAPTION, text = b.description!!, image = null)) else listOf(b)
+        for ((bi, b) in flow.withIndex()) {
+            onEach()
+            if (b.breakBefore) newScreen()
+            if (b.missingLabel != null) {
+                items += ScreenItem.Missing(b.missingLabel, b.missingCount)
+                pages += b.page
+                newScreen()
+                continue
             }
-        }
-        for (b in blocks) {
             when (b.type) {
                 BlockType.FIGURE -> {
                     val aspect = imageAspect(b.image) ?: b.box?.let { if (it.height > 0) it.width / it.height else null } ?: 1.5f
@@ -104,31 +120,37 @@ class Paginator(
                         if (left >= height * 0.3f) h = left else newScreen()
                     }
                     used += gap() + h
-                    items += ScreenItem.Figure(b.image, b.description, h)
+                    items += ScreenItem.Figure(b.image, b.description, h, b.page)
+                    pages += b.page
                 }
                 BlockType.BOX -> {
-                    var text = annotate(b.text.replace("\n\n", "\n"), pageIndex)
+                    val full = annotate(b)
+                    var start = 0
                     var title = b.title
                     var continued = false
                     while (true) {
+                        val text = full.subSequence(start, full.length)
                         val inner = width - 2 * boxPad
                         val titleH = title?.let { measure(AnnotatedString(it), styles.boxTitle, inner).size.height + spacing / 2 } ?: 0f
                         val avail = height - used - gap() - 2 * boxPad - titleH
                         val layoutResult = measurer.measure(text, styles.boxText, constraints = Constraints(maxWidth = inner.toInt()))
                         if (layoutResult.size.height <= avail) {
                             used += gap() + 2 * boxPad + titleH + layoutResult.size.height
-                            items += ScreenItem.Box(title, text, continued)
+                            items += ScreenItem.Box(title, text, continued, bi, start)
+                            pages += b.pagesIn(start, full.length)
                             break
                         }
                         val lines = fittingLines(layoutResult, avail)
                         if (lines == 0) {
-                            if (items.isEmpty()) { items += ScreenItem.Box(title, text, continued); newScreen(); break }
+                            if (items.isEmpty()) { items += ScreenItem.Box(title, text, continued, bi, start); pages += b.pagesIn(start, full.length); newScreen(); break }
                             newScreen(); continue
                         }
                         val end = layoutResult.getLineEnd(lines - 1)
-                        items += ScreenItem.Box(title, text.subSequence(0, end), continued)
+                        items += ScreenItem.Box(title, text.subSequence(0, end), continued, bi, start)
+                        pages += b.pagesIn(start, start + end)
                         newScreen()
-                        text = text.subSequence(end, text.length).trimStart()
+                        start = skipSpace(full, start + end)
+                        if (start >= full.length) break
                         title = null
                         continued = true
                     }
@@ -139,38 +161,46 @@ class Paginator(
                         BlockType.CAPTION -> TextKind.CAPTION
                         else -> TextKind.PARAGRAPH
                     }
-                    var text = annotate(b.text, pageIndex)
-                    if (text.isEmpty()) continue
+                    val full = annotate(b)
+                    if (full.isEmpty()) continue
+                    var start = 0
                     // En overskrift nederst på en skjermside flyttes til neste, sammen med teksten under.
                     if (kind == TextKind.HEADING && used > height * 0.75f) newScreen()
                     while (true) {
+                        val text = full.subSequence(start, full.length)
                         val style = styles.of(kind)
                         val layoutResult = measurer.measure(text, style, constraints = Constraints(maxWidth = width))
                         val avail = height - used - gap()
                         if (layoutResult.size.height <= avail) {
                             used += gap() + layoutResult.size.height
-                            items += ScreenItem.Text(text, kind)
+                            items += ScreenItem.Text(text, kind, bi, start)
+                            pages += b.pagesIn(start, full.length)
                             break
                         }
                         val lines = fittingLines(layoutResult, avail)
                         if (lines == 0) {
-                            if (items.isEmpty()) { items += ScreenItem.Text(text, kind); newScreen(); break }
+                            if (items.isEmpty()) { items += ScreenItem.Text(text, kind, bi, start); pages += b.pagesIn(start, full.length); newScreen(); break }
                             newScreen(); continue
                         }
                         val end = layoutResult.getLineEnd(lines - 1)
-                        items += ScreenItem.Text(text.subSequence(0, end), kind)
+                        items += ScreenItem.Text(text.subSequence(0, end), kind, bi, start)
+                        pages += b.pagesIn(start, start + end)
                         newScreen()
-                        text = text.subSequence(end, text.length).trimStart()
-                        if (text.isEmpty()) break
+                        start = skipSpace(full, start + end)
+                        if (start >= full.length) break
                     }
                 }
             }
         }
-        if (items.isNotEmpty() || screens.isEmpty()) {
-            if (items.isEmpty()) items += ScreenItem.Empty
-            newScreen()
-        }
+        newScreen()
+        if (screens.isEmpty()) screens += Screen(listOf(ScreenItem.Empty), listOf(0))
         return screens
+    }
+
+    private fun skipSpace(text: AnnotatedString, from: Int): Int {
+        var i = from
+        while (i < text.length && text[i].isWhitespace()) i++
+        return i
     }
 
     private fun measure(text: AnnotatedString, style: TextStyle, width: Float) =
@@ -189,42 +219,20 @@ class Paginator(
         return if (o.outWidth > 0 && o.outHeight > 0) o.outWidth.toFloat() / o.outHeight else null
     }
 
-    /** Siden som pagineres nå er en innholdsfortegnelse: oppføringene gjøres trykkbare i [annotate]. */
-    private var toc = false
-
     /**
-     * Fotnotereferanser «[^n]» blir hevet skrift som kan trykkes på. I en innholdsfortegnelse blir hver oppføring
-     * en lenke til siden den viser til (sidetallet understrekes).
+     * Blokkens tekst med fotnotereferanser som hevet skrift som kan trykkes på. I en innholdsfortegnelse blir hver
+     * oppføring en lenke til siden den viser til (sidetallet understrekes).
      */
-    fun annotate(text: String, pageIndex: Int): AnnotatedString {
-        val notes = footnotes(text, pageIndex)
-        if (!toc) return notes
-        val entries = TocLinks.entries(notes.text)
-        if (entries.isEmpty()) return notes
-        return AnnotatedString.Builder(notes).apply {
-            for (e in entries) {
+    fun annotate(b: ReadingFlow.Block): AnnotatedString = AnnotatedString.Builder(b.text).apply {
+        for (n in b.notes) {
+            addLink(LinkAnnotation.Clickable("fotnote:${n.number}") { onFootnote(n.page, n.number) }, n.start, n.end)
+            addStyle(SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = 0.7.em), n.start, n.end)
+        }
+        if (b.toc) {
+            for (e in TocLinks.entries(b.text)) {
                 addLink(LinkAnnotation.Clickable("side:${e.page}") { onPageLink(e.page) }, e.range.first, e.range.last + 1)
                 addStyle(SpanStyle(textDecoration = TextDecoration.Underline), e.numberStart, e.range.last + 1)
             }
-        }.toAnnotatedString()
-    }
-
-    private fun footnotes(text: String, pageIndex: Int): AnnotatedString = buildAnnotatedString {
-        var last = 0
-        for (m in PageLayout.FOOTNOTE_REF.findAll(text)) {
-            append(text.substring(last, m.range.first))
-            val number = m.groupValues[1]
-            withLink(LinkAnnotation.Clickable("fotnote:$number") { onFootnote(pageIndex, number) }) {
-                withStyle(SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = 0.7.em)) { append(number) }
-            }
-            last = m.range.last + 1
         }
-        append(text.substring(last))
-    }
-}
-
-private fun AnnotatedString.trimStart(): AnnotatedString {
-    var i = 0
-    while (i < length && this[i].isWhitespace()) i++
-    return if (i == 0) this else subSequence(i, length)
+    }.toAnnotatedString()
 }

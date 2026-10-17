@@ -40,13 +40,19 @@ automatisk** går hver opplasting til Claude som egen batch, så det som allered
 ### Leseren
 
 - Fullskjerm: statuslinjen og navigasjonslinjen skjules mens du leser (sveip inn fra kanten for å se dem et øyeblikk).
-- Én bokside per skjerm; får ikke teksten plass, deles den over flere skjermsider. Ingen scrolling.
+- Teksten flyter over boksidene: et avsnitt som fortsetter på neste bokside blir ett avsnitt, og skjermsiden fylles
+  opp. Bare hovedkapitler (overskrift øverst på en bokside etter en avsluttet side) begynner på ny skjermside.
+  Ingen scrolling. Bunnlinjen viser bokens sidetall («s. 26/27» når skjermsiden går over et sideskift) og appens eget
+  skjermsidenummer («57 / 812»).
 - Faktabokser vises i farget boks, figurer på riktig plass (trykk for fullskjerm med zoom), fotnoter som hevet skrift
   (trykk for å lese fotnoten).
 - Menyen: skriftstørrelse, linjeavstand, serif/sans, lys/sepia/mørk, gå til side, fremdrift.
 - **Vis original**: sidebildet med zoom. Her kan du også markere et område og si «dette er en figur» eller «en faktaboks».
 - **Rediger tekst**: rett OCR-feil (lagres i `redigertTekst`; råteksten beholdes).
-- Siste leste side huskes per bok.
+- Lesepunktet huskes per bok, med plassen på siden.
+- **Langt trykk på teksten**: marker setningen (kan utvides med neste setning), sett bokmerke, eller fjern en markering.
+  Bokmerket vises som et bånd i margen; knappen oppe til høyre (og i menyen) går tilbake til det. «Markeringer» i
+  menyen viser all markert tekst med sidetall, og hopper dit. Bokmerke og markeringer er med i sikkerhetskopien.
 
 ## Claude API
 

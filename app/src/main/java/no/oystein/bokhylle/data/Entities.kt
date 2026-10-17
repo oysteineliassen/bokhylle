@@ -1,5 +1,6 @@
 package no.oystein.bokhylle.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -19,6 +20,9 @@ data class Book(
     val opprettet: Long = System.currentTimeMillis(),
     /** Id-en til siden som sist ble lest (følger siden selv om rekkefølgen endres). */
     val sistLestSide: Long? = null,
+    /** Hvor på siden: blokk og tegn i visningsteksten (se ReadingFlow.Anchor). */
+    @ColumnInfo(defaultValue = "0") val sistLestBlokk: Int = 0,
+    @ColumnInfo(defaultValue = "0") val sistLestTegn: Int = 0,
     /** Claude-modellen som brukes for denne boka (se ClaudeModels). */
     val claudeModell: String = "auto",
     /** Fast id på tvers av telefoner, brukt ved eksport/import for å kjenne igjen samme bok. */
@@ -177,3 +181,32 @@ data class SearchHit(
     val oppdagetSidetall: String?,
     val tekst: String,
 )
+
+/**
+ * Bokmerke (ett per bok) eller markert tekst. Start og slutt er ankre i leserens visningstekst: bokside, blokk og
+ * tegn (se ReadingFlow.Anchor). [tekst] er det markerte (eller teksten ved bokmerket), så det kan finnes igjen
+ * om teksten på siden endres.
+ */
+@Entity(
+    tableName = "markeringer",
+    foreignKeys = [ForeignKey(entity = Book::class, parentColumns = ["id"], childColumns = ["bookId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("bookId")],
+)
+data class Marking(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bookId: Long,
+    val type: String,
+    val sideId: Long,
+    val blokk: Int,
+    val tegn: Int,
+    val sluttSideId: Long,
+    val sluttBlokk: Int,
+    val sluttTegn: Int,
+    val tekst: String,
+    val opprettet: Long = System.currentTimeMillis(),
+) {
+    companion object {
+        const val BOKMERKE = "bokmerke"
+        const val MARKERING = "markering"
+    }
+}

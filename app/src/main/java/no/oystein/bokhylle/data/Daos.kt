@@ -52,8 +52,8 @@ interface BookDao {
     suspend fun setCoverImage(bookId: Long, path: String?)
 
 
-    @Query("UPDATE books SET sistLestSide = :pageId WHERE id = :bookId")
-    suspend fun setLastRead(bookId: Long, pageId: Long)
+    @Query("UPDATE books SET sistLestSide = :pageId, sistLestBlokk = :block, sistLestTegn = :offset WHERE id = :bookId")
+    suspend fun setLastRead(bookId: Long, pageId: Long, block: Int = 0, offset: Int = 0)
 
     @Query("UPDATE books SET sistEndret = :time WHERE id = :bookId")
     suspend fun touch(bookId: Long, time: Long = System.currentTimeMillis())
@@ -178,4 +178,29 @@ interface ClaudeDao {
 
     @Query("DELETE FROM claude_jobber WHERE bookId = :bookId")
     suspend fun deleteJobsForBook(bookId: Long)
+}
+
+@Dao
+interface MarkingDao {
+    @Query("SELECT * FROM markeringer WHERE bookId = :bookId ORDER BY opprettet")
+    fun observe(bookId: Long): Flow<List<Marking>>
+
+    @Query("SELECT * FROM markeringer WHERE bookId = :bookId ORDER BY opprettet")
+    suspend fun forBook(bookId: Long): List<Marking>
+
+    @Insert
+    suspend fun insert(marking: Marking): Long
+
+    @Query("DELETE FROM markeringer WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("DELETE FROM markeringer WHERE bookId = :bookId AND type = :type")
+    suspend fun deleteType(bookId: Long, type: String)
+
+    /** Bokmerket erstattes: det finnes bare ett per bok. */
+    @Transaction
+    suspend fun setBookmark(marking: Marking) {
+        deleteType(marking.bookId, Marking.BOKMERKE)
+        insert(marking)
+    }
 }

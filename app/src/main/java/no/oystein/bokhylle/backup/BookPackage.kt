@@ -9,6 +9,7 @@ import no.oystein.bokhylle.core.num
 import no.oystein.bokhylle.core.obj
 import no.oystein.bokhylle.core.str
 import no.oystein.bokhylle.data.Book
+import no.oystein.bokhylle.data.Marking
 import no.oystein.bokhylle.data.Page
 import java.io.File
 import java.io.InputStream
@@ -105,6 +106,18 @@ object BookPackage {
             // Omslagsbildet er lite og tas med også når sidebildene ikke gjør det.
             "omslagBilde" to addImage(book.omslagBilde),
             "sistLest" to book.sistLestSide?.let { index[it] },
+            "sistLestBlokk" to book.sistLestBlokk,
+            "sistLestTegn" to book.sistLestTegn,
+            // Bokmerke og markert tekst, med sidene som indekser.
+            "markeringer" to app.db.markings().forBook(book.id).mapNotNull { m ->
+                val start = index[m.sideId] ?: return@mapNotNull null
+                val end = index[m.sluttSideId] ?: return@mapNotNull null
+                mapOf(
+                    "type" to m.type, "side" to start, "blokk" to m.blokk, "tegn" to m.tegn,
+                    "sluttSide" to end, "sluttBlokk" to m.sluttBlokk, "sluttTegn" to m.sluttTegn,
+                    "tekst" to m.tekst, "opprettet" to m.opprettet,
+                )
+            },
             "sider" to pages.size,
             "rettedeSider" to pages.count { it.redigertTekst != null },
             "eksportert" to System.currentTimeMillis(),
@@ -270,7 +283,21 @@ object BookPackage {
         }
         b.num("omslag")?.toInt()?.let { ids.getOrNull(it) }?.let { app.db.books().setCover(bookId, it) }
         image(b.str("omslagBilde"))?.let { app.db.books().setCoverImage(bookId, it) }
-        b.num("sistLest")?.toInt()?.let { ids.getOrNull(it) }?.let { app.db.books().setLastRead(bookId, it) }
+        b.num("sistLest")?.toInt()?.let { ids.getOrNull(it) }?.let {
+            app.db.books().setLastRead(bookId, it, b.num("sistLestBlokk")?.toInt() ?: 0, b.num("sistLestTegn")?.toInt() ?: 0)
+        }
+        for (m in b["markeringer"].arr().mapNotNull { it.obj() }) {
+            val start = m.num("side")?.toInt()?.let { ids.getOrNull(it) } ?: continue
+            val end = m.num("sluttSide")?.toInt()?.let { ids.getOrNull(it) } ?: continue
+            app.db.markings().insert(
+                Marking(
+                    bookId = bookId, type = m.str("type") ?: continue, sideId = start,
+                    blokk = m.num("blokk")?.toInt() ?: 0, tegn = m.num("tegn")?.toInt() ?: 0,
+                    sluttSideId = end, sluttBlokk = m.num("sluttBlokk")?.toInt() ?: 0, sluttTegn = m.num("sluttTegn")?.toInt() ?: 0,
+                    tekst = m.str("tekst").orEmpty(), opprettet = m.num("opprettet")?.toLong() ?: System.currentTimeMillis(),
+                ),
+            )
+        }
         // setLastRead/setCover endrer ikke sistEndret; behold tidspunktet fra filen.
     }
 }

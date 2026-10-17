@@ -17,6 +17,8 @@ import no.oystein.bokhylle.core.ManualRegion
 import no.oystein.bokhylle.core.PageLayout
 import no.oystein.bokhylle.data.Book
 import no.oystein.bokhylle.data.Page
+import no.oystein.bokhylle.data.Marking
+import no.oystein.bokhylle.core.ReadingFlow
 
 class ReaderViewModel(val bookId: Long, private val app: BokhylleApp) : ViewModel() {
     private val repo = app.repo
@@ -46,14 +48,43 @@ class ReaderViewModel(val bookId: Long, private val app: BokhylleApp) : ViewMode
 
     fun editableText(p: Page): String = p.redigertTekst ?: LayoutMarkup.toMarkup(baseLayout(p))
 
+    /** Bokmerke og markert tekst i boka. */
+    val markings: StateFlow<List<Marking>> = app.db.markings().observe(bookId)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Lesestrømmen: boksidene etter hverandre (se ReadingFlow). */
+    fun flowOf(pages: List<Page>, missing: List<no.oystein.bokhylle.core.MissingPages>): List<ReadingFlow.Block> =
+        ReadingFlow.build(pages.map { layoutOf(it) }) { i ->
+            missing.filter { it.afterPageId == pages[i].id }.map { it.label to it.count }
+        }
+
     private var saveJob: Job? = null
-    fun saveLastRead(pageId: Long) {
+    /** Husker hvor i teksten leseren står (begynnelsen av skjermsiden). */
+    fun saveLastRead(pageId: Long, block: Int = 0, offset: Int = 0) {
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             delay(400)
-            repo.setLastRead(bookId, pageId)
+            app.db.books().setLastRead(bookId, pageId, block, offset)
         }
     }
+
+    fun setBookmark(pageId: Long, block: Int, offset: Int, text: String) = viewModelScope.launch {
+        app.db.markings().setBookmark(
+            Marking(bookId = bookId, type = Marking.BOKMERKE, sideId = pageId, blokk = block, tegn = offset,
+                sluttSideId = pageId, sluttBlokk = block, sluttTegn = offset, tekst = text),
+        )
+    }
+
+    fun removeBookmark() = viewModelScope.launch { app.db.markings().deleteType(bookId, Marking.BOKMERKE) }
+
+    fun addHighlight(start: Pair<Long, ReadingFlow.Anchor>, end: Pair<Long, ReadingFlow.Anchor>, text: String) = viewModelScope.launch {
+        app.db.markings().insert(
+            Marking(bookId = bookId, type = Marking.MARKERING, sideId = start.first, blokk = start.second.block, tegn = start.second.offset,
+                sluttSideId = end.first, sluttBlokk = end.second.block, sluttTegn = end.second.offset, tekst = text),
+        )
+    }
+
+    fun removeMarking(id: Long) = viewModelScope.launch { app.db.markings().delete(id) }
 
     fun saveEdit(page: Page, text: String?) = viewModelScope.launch {
         val unchanged = text != null && text.trim() == LayoutMarkup.toMarkup(baseLayout(page)).trim()
