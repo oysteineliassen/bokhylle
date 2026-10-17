@@ -54,11 +54,12 @@ data class Screen(val items: List<ScreenItem>, val pages: List<Int>) {
 class ReaderStyles(settings: ReaderSettings) {
     private val family = if (settings.serif) FontFamily.Serif else FontFamily.SansSerif
     val body = TextStyle(fontSize = settings.fontSize.sp, lineHeight = (settings.fontSize * settings.lineHeight).sp, fontFamily = family)
-    private fun headingOf(scale: Float) =
-        body.copy(fontSize = (settings.fontSize * scale).sp, lineHeight = (settings.fontSize * scale * 1.25f).sp, fontWeight = FontWeight.Bold)
+    private fun headingOf(scale: Float, weight: FontWeight = FontWeight.Bold) =
+        body.copy(fontSize = (settings.fontSize * scale).sp, lineHeight = (settings.fontSize * scale * 1.25f).sp, fontWeight = weight)
+    // Hovedkapitler skal skille seg tydelig ut fra underkapitler, også når underkapitlene er satt med versaler.
     val chapter = headingOf(1.6f)
     val heading = headingOf(1.3f)
-    val subheading = headingOf(1.12f)
+    val subheading = headingOf(1.1f, FontWeight.SemiBold)
     val caption = body.copy(fontSize = (settings.fontSize * 0.85f).sp, lineHeight = (settings.fontSize * 0.85f * 1.35f).sp, fontStyle = FontStyle.Italic)
     val boxText = body.copy(fontSize = (settings.fontSize * 0.92f).sp, lineHeight = (settings.fontSize * 0.92f * settings.lineHeight).sp)
     val boxTitle = boxText.copy(fontWeight = FontWeight.Bold)
