@@ -28,6 +28,31 @@ class ReadingFlowTest {
     }
 
     @Test
+    fun `innholdsfortegnelsens overskrifter avgjør hovedkapitler og underkapitler`() {
+        val toc = p(
+            head("Del 1: Solen ..... 30"),
+            head("Lysfysikk og solstråling 37"),
+            para("Bare en brøkdel, og likevel alt vi trenger 37\nUV-stråling 40\nInfrarødt lys 44"),
+        )
+        val flow = ReadingFlow.build(listOf(
+            toc,
+            p(para("Slutten på delen.")),
+            p(head("Lysfysikk og solstråling"), para("Hittil har vi sett."), head("BARE EN BRØKDEL, OG LIKEVEL ALT VI TRENGER"), para("Det er bare.")),
+            p(head("UV-STRÅLING"), para("Ny side.")),
+        ))
+        val chapter = flow.first { it.text == "Lysfysikk og solstråling" }
+        val sub = flow.first { it.text.startsWith("BARE EN") }
+        val uv = flow.first { it.text == "UV-STRÅLING" }
+        assertEquals(1, chapter.level)
+        assertTrue(chapter.breakBefore)
+        assertEquals(2, sub.level)
+        assertFalse(sub.breakBefore)
+        // Underkapittel øverst på en ny bokside: fortsetter på samme skjermside.
+        assertEquals(2, uv.level)
+        assertFalse(uv.breakBefore)
+    }
+
+    @Test
     fun `hovedkapittel øverst på en side begynner på ny skjermside`() {
         val flow = ReadingFlow.build(listOf(
             p(para("Slutten på kapittelet.")),

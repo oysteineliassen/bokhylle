@@ -22,7 +22,8 @@ import no.oystein.bokhylle.core.BlockType
 import no.oystein.bokhylle.core.ReadingFlow
 import no.oystein.bokhylle.core.TocLinks
 
-enum class TextKind { HEADING, PARAGRAPH, CAPTION }
+/** [CHAPTER] og [SUBHEADING] når innholdsfortegnelsen skiller hovedkapitler fra underkapitler, ellers [HEADING]. */
+enum class TextKind { CHAPTER, HEADING, SUBHEADING, PARAGRAPH, CAPTION }
 
 /** Det som vises på én skjermside. [block] er indeksen i lesestrømmen, [start] der utsnittet begynner i blokkens tekst. */
 sealed class ScreenItem {
@@ -53,13 +54,19 @@ data class Screen(val items: List<ScreenItem>, val pages: List<Int>) {
 class ReaderStyles(settings: ReaderSettings) {
     private val family = if (settings.serif) FontFamily.Serif else FontFamily.SansSerif
     val body = TextStyle(fontSize = settings.fontSize.sp, lineHeight = (settings.fontSize * settings.lineHeight).sp, fontFamily = family)
-    val heading = body.copy(fontSize = (settings.fontSize * 1.3f).sp, lineHeight = (settings.fontSize * 1.3f * 1.25f).sp, fontWeight = FontWeight.Bold)
+    private fun headingOf(scale: Float) =
+        body.copy(fontSize = (settings.fontSize * scale).sp, lineHeight = (settings.fontSize * scale * 1.25f).sp, fontWeight = FontWeight.Bold)
+    val chapter = headingOf(1.6f)
+    val heading = headingOf(1.3f)
+    val subheading = headingOf(1.12f)
     val caption = body.copy(fontSize = (settings.fontSize * 0.85f).sp, lineHeight = (settings.fontSize * 0.85f * 1.35f).sp, fontStyle = FontStyle.Italic)
     val boxText = body.copy(fontSize = (settings.fontSize * 0.92f).sp, lineHeight = (settings.fontSize * 0.92f * settings.lineHeight).sp)
     val boxTitle = boxText.copy(fontWeight = FontWeight.Bold)
 
     fun of(kind: TextKind) = when (kind) {
+        TextKind.CHAPTER -> chapter
         TextKind.HEADING -> heading
+        TextKind.SUBHEADING -> subheading
         TextKind.PARAGRAPH -> body
         TextKind.CAPTION -> caption
     }
@@ -158,7 +165,11 @@ class Paginator(
                 }
                 else -> {
                     val kind = when (b.type) {
-                        BlockType.HEADING -> TextKind.HEADING
+                        BlockType.HEADING -> when (b.level) {
+                            1 -> TextKind.CHAPTER
+                            2 -> TextKind.SUBHEADING
+                            else -> TextKind.HEADING
+                        }
                         BlockType.CAPTION -> TextKind.CAPTION
                         else -> TextKind.PARAGRAPH
                     }
@@ -166,7 +177,7 @@ class Paginator(
                     if (full.isEmpty()) continue
                     var start = 0
                     // En overskrift nederst på en skjermside flyttes til neste, sammen med teksten under.
-                    if (kind == TextKind.HEADING && used > height * 0.75f) newScreen()
+                    if (b.type == BlockType.HEADING && used > height * 0.75f) newScreen()
                     while (true) {
                         val text = full.subSequence(start, full.length)
                         val style = styles.of(kind)

@@ -36,6 +36,8 @@ object ReadingFlow {
         /** «Side 65–79 er ikke lagt inn ennå»: [missingLabel] og antallet. */
         val missingLabel: String? = null,
         val missingCount: Int = 0,
+        /** For overskrifter: 1 = hovedkapittel, 2 = underkapittel, 0 = ukjent (boka har ingen brukbar innholdsfortegnelse). */
+        val level: Int = 0,
     ) {
         /** Boksiden blokken begynner på. */
         val page get() = spans.first().page
@@ -91,12 +93,39 @@ object ReadingFlow {
         return t.isNotEmpty() && t.last() !in ".!?:»”\"…)"
     }
 
+    private fun normalize(t: String) = t.lowercase().filter { it.isLetterOrDigit() }
+
+    /**
+     * Titlene på hovedkapitlene: oppføringene innholdsfortegnelsen setter som overskrifter (større eller fetere enn
+     * underkapitlene). Tom når innholdsfortegnelsen ikke skiller mellom nivåene, eller ikke finnes.
+     */
+    fun chapterTitles(pages: List<PageLayout>): Set<String> {
+        val main = mutableSetOf<String>()
+        var sub = 0
+        for (layout in pages.filter { TocLinks.isTocPage(it) }) {
+            for (b in layout.blocks) {
+                val titles = TocLinks.entries(b.text).map { e -> normalize(b.text.substring(e.range.first, e.numberStart)) }
+                    .filter { it.length >= 3 }
+                if (b.type == BlockType.HEADING) main += titles else sub += titles.size
+            }
+        }
+        return if (main.isNotEmpty() && sub > 0) main else emptySet()
+    }
+
+    /** Er overskriften [text] et av hovedkapitlene i [main]? Tåler «Kapittel 3:» o.l. foran eller bak tittelen. */
+    private fun isChapter(text: String, main: Set<String>): Boolean {
+        val t = normalize(text)
+        if (t.length < 3) return false
+        return main.any { it == t || (minOf(it.length, t.length) >= 8 && (t.endsWith(it) || t.startsWith(it) || it.endsWith(t))) }
+    }
+
     /**
      * Bygger strømmen. [missingAfter] gir merknader om manglende sider etter boksiden med en gitt indeks
      * (etikett og antall).
      */
     fun build(pages: List<PageLayout>, missingAfter: (Int) -> List<Pair<String, Int>> = { emptyList() }): List<Block> {
         val out = mutableListOf<Block>()
+        val main = chapterTitles(pages)
         var forceBreak = false
         for ((pi, layout) in pages.withIndex()) {
             val toc = TocLinks.isTocPage(layout)
@@ -120,12 +149,21 @@ object ReadingFlow {
                     )
                     return@forEachIndexed
                 }
-                // Hovedkapittel: overskrift først på boksiden, og forrige bokside sluttet med en hel setning.
-                val chapter = first && b.type == BlockType.HEADING && out.isNotEmpty() &&
-                    out.last().type != BlockType.HEADING && !(out.last().type == BlockType.PARAGRAPH && endsOpen(out.last().text))
+                // Nivået: hovedkapitlene er overskriftene i innholdsfortegnelsen, de andre er underkapitler.
+                val level = when {
+                    b.type != BlockType.HEADING || main.isEmpty() || toc -> 0
+                    isChapter(text, main) -> 1
+                    else -> 2
+                }
+                // Hovedkapittel på ny skjermside. Uten nivåer: en overskrift først på boksiden, og forrige bokside
+                // sluttet med en hel setning.
+                val chapter = b.type == BlockType.HEADING && out.isNotEmpty() && out.last().type != BlockType.HEADING &&
+                    if (main.isNotEmpty() && !toc) level == 1
+                    else first && !(out.last().type == BlockType.PARAGRAPH && endsOpen(out.last().text))
                 out += Block(
                     type = b.type, text = text, title = b.title, spans = listOf(Span(0, text.length, pi, bi)), notes = notes,
                     breakBefore = forceBreak || chapter, toc = toc, image = b.image, description = b.description, box = b.box,
+                    level = level,
                 )
                 forceBreak = false
             }
