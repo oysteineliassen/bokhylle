@@ -66,7 +66,7 @@ fun StorageCard(book: Book, pages: List<Page>) {
             }
             if (!book.ferdigKontrollert) {
                 OutlinedButton(onClick = { confirm = "ferdig" }, enabled = !busy && pages.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
-                    Text("Merk boka som ferdig")
+                    Text("Ferdig lagt inn – spar plass")
                 }
             } else {
                 OutlinedButton(onClick = { scope.launch { app.repo.reopen(book.id) } }, modifier = Modifier.fillMaxWidth()) {
@@ -84,7 +84,7 @@ fun StorageCard(book: Book, pages: List<Page>) {
     when (confirm) {
         "ferdig" -> AlertDialog(
             onDismissRequest = { confirm = null },
-            title = { Text("Er boka ferdig?") },
+            title = { Text("Er boka ferdig lagt inn?") },
             text = {
                 Text(
                     "Boka får status «Ferdig». Sidebildene skaleres ned til ca. 1600 px (nok til «Vis original»), og bildene " +

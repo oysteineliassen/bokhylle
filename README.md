@@ -32,7 +32,7 @@ Last ned `Bokhylle-1.0.N.apk` på telefonen og åpne den. Nye versjoner installe
 
 ### Bøker i arbeid
 
-En bok er «Under arbeid» til du trykker **Merk boka som ferdig**. Biblioteket viser hvilke sider som er lagt inn
+En bok er «Under arbeid» til du trykker **Ferdig lagt inn – spar plass**. Biblioteket viser hvilke sider som er lagt inn
 («Sider: 1–64, 80–112 av 380» når du har oppgitt antall sider) og en knapp **Fortsett å legge til sider**.
 Leseren viser en tydelig side «Side 65–79 er ikke lagt inn ennå» der sider mangler. Med **Send nye opplastinger
 automatisk** går hver opplasting til Claude som egen batch, så det som allerede er lagt inn kan leses mens resten mangler.
