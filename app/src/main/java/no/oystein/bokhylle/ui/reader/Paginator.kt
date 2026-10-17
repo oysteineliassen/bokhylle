@@ -104,8 +104,9 @@ class Paginator(
         for ((bi, b) in flow.withIndex()) {
             onEach()
             if (b.breakBefore) newScreen()
-            if (b.missingLabel != null) {
-                items += ScreenItem.Missing(b.missingLabel, b.missingCount)
+            val missingLabel = b.missingLabel
+            if (missingLabel != null) {
+                items += ScreenItem.Missing(missingLabel, b.missingCount)
                 pages += b.page
                 newScreen()
                 continue
