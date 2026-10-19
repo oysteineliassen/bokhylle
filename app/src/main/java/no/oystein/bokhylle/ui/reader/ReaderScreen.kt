@@ -1,6 +1,12 @@
 package no.oystein.bokhylle.ui.reader
 
 import androidx.compose.animation.AnimatedVisibility
+import no.oystein.bokhylle.core.BlockType
+import kotlin.math.roundToInt
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -409,17 +415,28 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
             Surface(tonalElevation = 3.dp, shadowElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val screenIndex = pagerState.currentPage
-                    val numbers = current?.pages?.mapNotNull { pages.getOrNull(it)?.sidetallVisning }?.distinct().orEmpty()
+                    var slider by remember(screenIndex) { mutableStateOf(screenIndex.toFloat()) }
+                    var dragging by remember { mutableStateOf(false) }
+                    // Mens sidebladeren dras: sidetall, kapittel og et lite utsnitt av skjermsiden den står på.
+                    val shownIndex = if (dragging) slider.roundToInt().coerceIn(0, (list.size - 1).coerceAtLeast(0)) else screenIndex
+                    val shown = list.getOrNull(shownIndex)
+                    val shownPage = shown?.let { pages.getOrNull(mainPage(it, flow)) }
+                    val numbers = shown?.pages?.mapNotNull { pages.getOrNull(it)?.sidetallVisning }?.distinct().orEmpty()
+                    if (dragging && shown != null) {
+                        chapterOf(shown, flow)?.let { title ->
+                            Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        ScreenPreview(shown, styles, theme, widthPx, heightPx, hPad)
+                    }
                     Text(
-                        "Side ${numbers.joinToString("/").ifEmpty { "–" }} · skjermside ${screenIndex + 1} av ${list.size}" +
-                            if (currentPage?.ocrKilde == Page.KILDE_CLAUDE) " · Claude" else " · tekst fra telefonen",
+                        "Side ${numbers.joinToString("/").ifEmpty { "–" }} · skjermside ${shownIndex + 1} av ${list.size}" +
+                            if (dragging) "" else if (shownPage?.ocrKilde == Page.KILDE_CLAUDE) " · Claude" else " · tekst fra telefonen",
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    var slider by remember(screenIndex) { mutableStateOf(screenIndex.toFloat()) }
                     Slider(
                         value = slider,
-                        onValueChange = { slider = it },
-                        onValueChangeFinished = { goToScreen(slider.toInt()) },
+                        onValueChange = { slider = it; dragging = true },
+                        onValueChangeFinished = { dragging = false; goToScreen(slider.roundToInt()) },
                         valueRange = 0f..(list.size - 1).coerceAtLeast(1).toFloat(),
                     )
                     if (bookmarkScreen >= 0) {
@@ -618,6 +635,46 @@ private fun decorate(text: AnnotatedString, block: Int, start: Int, highlights: 
             addStyle(SpanStyle(background = color), (r.first - start).coerceAtLeast(0), (r.second - start).coerceAtMost(text.length))
         }
     }.toAnnotatedString()
+}
+
+/** Kapitlet en skjermside hører til: nærmeste hovedkapittel (ellers overskrift) før eller øverst på skjermsiden. */
+private fun chapterOf(screen: Screen, flow: List<ReadingFlow.Block>): String? {
+    val first = screen.items.firstNotNullOfOrNull {
+        when (it) {
+            is ScreenItem.Text -> it.block
+            is ScreenItem.Box -> it.block
+            else -> null
+        }
+    } ?: return null
+    val before = flow.take(first + 1).filter { it.type == BlockType.HEADING && !it.toc }
+    return (before.lastOrNull { it.level == 1 } ?: before.lastOrNull())?.text?.replace('\n', ' ')
+}
+
+/** Et lite utsnitt av en skjermside, tegnet i leserens stil og skalert ned (vises mens sidebladeren dras). */
+@Composable
+private fun ScreenPreview(screen: Screen, styles: ReaderStyles, theme: ReaderTheme, widthPx: Int, heightPx: Int, hPad: androidx.compose.ui.unit.Dp) {
+    val density = LocalDensity.current
+    val scale = 0.4f
+    val fullW = with(density) { widthPx.toDp() + hPad * 2 }
+    val fullH = with(density) { heightPx.toDp() + hPad }
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(fullW * scale, fullH * scale).clip(RoundedCornerShape(6.dp)).background(theme.background).clipToBounds()
+                .semantics { contentDescription = "Utsnitt av siden" },
+        ) {
+            Column(
+                Modifier.wrapContentSize(Alignment.TopStart, unbounded = true).requiredSize(fullW, fullH)
+                    .graphicsLayer { scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, 0f) }
+                    .padding(start = hPad, end = hPad, top = hPad / 2),
+                verticalArrangement = Arrangement.spacedBy(with(density) { styles.spacing(density).toDp() }),
+            ) {
+                ScreenContent(
+                    screen, styles, theme, highlights = emptyList(), selection = null, bookmark = null,
+                    onLayout = { _, _, _ -> }, onFigure = { _, _, _ -> }, onPrev = {}, onNext = {},
+                )
+            }
+        }
+    }
 }
 
 @Composable
