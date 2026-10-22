@@ -190,6 +190,8 @@ class TestReceiver : BroadcastReceiver() {
         val drawingsOk = drawings(app.db.pages().forBook(copyId)) == drawings(pages)
         val epub = File(dir, "bok.epub")
         epub.outputStream().use { no.oystein.bokhylle.backup.EpubExporter.export(app, book.id, it) }
+        val txt = File(dir, "bok.txt")
+        txt.outputStream().use { no.oystein.bokhylle.backup.TxtExporter.export(app, book.id, it) }
         val backupFile = File(dir, "alt.bokhylle-backup")
         backupFile.outputStream().use { app.backup.write(it) }
         val preview = backupFile.inputStream().use { app.backup.preview(it) }
@@ -200,7 +202,7 @@ class TestReceiver : BroadcastReceiver() {
         Log.d(
             TAG,
             "test: backup uuid=${info.uuid == book.uuid} sider=${copy.size}/${pages.size} tekst=$sameText figurer=$figures " +
-                "epub=${epub.length()} kopi=${preview.books.size} like=${preview.compare.count { it.status.name == "SAME" }} " +
+                "epub=${epub.length()} txt=${txt.length()} kopi=${preview.books.size} like=${preview.compare.count { it.status.name == "SAME" }} " +
                 "skadet=$brokenOk bøker=$booksAfter tegninger=$drawingsOk",
         )
         app.repo.deleteBook(copyId)

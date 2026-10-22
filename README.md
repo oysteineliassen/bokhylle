@@ -103,7 +103,7 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
 ## Sikkerhetskopi, eksport og import
 
 - **Eksporter** en bok som `.bokhylle`-fil (zip med `book.json`, `pages.json` og bildene), med eller uten
-  originalbilder, eller som **EPUB** for andre lesere. Lagre med «Lagre som …» eller del via Android-delingsmenyen.
+  originalbilder, som **EPUB** for andre lesere, eller som **tekstfil** (.txt, UTF-8). Lagre med «Lagre som …» eller del via Android-delingsmenyen.
 - **Send til Kindle** lager en Kindle-vennlig EPUB 3 (enkel CSS, faktabokser med kantlinje og farge, ekte
   popup-fotnoter, figurer på maks 1200 px / JPEG 80 %, omslag fra omslagsbildet eller valgt forside, innholdsfortegnelse fra
   overskriftene, språk «nb») og åpner delingsmenyen med filen.

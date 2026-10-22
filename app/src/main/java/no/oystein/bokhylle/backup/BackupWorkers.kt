@@ -64,7 +64,7 @@ fun notifyError(context: Context, title: String, text: String) {
     runCatching { NotificationManagerCompat.from(context).notify(3001, n) }
 }
 
-/** Eksport av én bok (.bokhylle eller EPUB) eller hele biblioteket, i bakgrunnen med fremdriftsvarsel. */
+/** Eksport av én bok (.bokhylle, EPUB eller tekstfil) eller hele biblioteket, i bakgrunnen med fremdriftsvarsel. */
 class ExportWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val app = applicationContext.app
@@ -74,6 +74,7 @@ class ExportWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         val withImages = inputData.getBoolean(KEY_IMAGES, true)
         val title = when (kind) {
             KIND_EPUB -> "Lager EPUB"
+            KIND_TXT -> "Lager tekstfil"
             KIND_BACKUP -> "Lager sikkerhetskopi"
             else -> "Eksporterer bok"
         }
@@ -88,6 +89,7 @@ class ExportWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             out.use {
                 when (kind) {
                     KIND_EPUB -> EpubExporter.export(app, bookId, it) { d, t -> if (d % 10 == 0 || d == t) progressBlocking(this, title, d, t) }
+                    KIND_TXT -> TxtExporter.export(app, bookId, it)
                     KIND_BACKUP -> app.backup.write(it) { d, t -> progressBlocking(this, title, d, t) }
                     else -> BookPackage.export(app, bookId, it, withImages) { d, t -> if (d % 10 == 0 || d == t) progressBlocking(this, title, d, t) }
                 }
@@ -107,6 +109,7 @@ class ExportWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         const val KEY_ERROR = "feil"
         const val KIND_BOOK = "bok"
         const val KIND_EPUB = "epub"
+        const val KIND_TXT = "txt"
         const val KIND_BACKUP = "kopi"
 
         fun enqueue(context: Context, kind: String, bookId: Long, target: Uri, withImages: Boolean): UUID {

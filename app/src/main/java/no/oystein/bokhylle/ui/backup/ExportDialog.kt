@@ -40,6 +40,7 @@ private enum class ExportKind(val label: String, val description: String) {
     FULL("Bokhylle-fil med originalbilder", "Alt, så boka kan kontrolleres og analyseres på nytt. Stor fil."),
     TEXT("Bokhylle-fil, bare tekst og figurer", "Mindre fil; nok til å lese og søke."),
     EPUB("EPUB", "For andre lesere (tekst, overskrifter, faktabokser og figurer)."),
+    TXT("Tekstfil (.txt)", "Bare teksten, med overskrifter og fotnoter. Kan åpnes overalt."),
 }
 
 /** Eksport av én bok: velg format, så «Lagre som …» (velg sted) eller «Del». Eksporten går i bakgrunnen. */
@@ -50,11 +51,23 @@ fun ExportDialog(book: Book, onDismiss: () -> Unit) {
     var work by remember { mutableStateOf<UUID?>(null) }
     var shareFile by remember { mutableStateOf<File?>(null) }
     val safeName = book.tittel.replace(Regex("[^\\p{L}\\p{N} ._-]"), "").trim().ifEmpty { "bok" }
-    val ext = if (kind == ExportKind.EPUB) "epub" else BookPackage.EXTENSION
-    val mime = if (kind == ExportKind.EPUB) "application/epub+zip" else "application/octet-stream"
+    val ext = when (kind) {
+        ExportKind.EPUB -> "epub"
+        ExportKind.TXT -> "txt"
+        else -> BookPackage.EXTENSION
+    }
+    val mime = when (kind) {
+        ExportKind.EPUB -> "application/epub+zip"
+        ExportKind.TXT -> "text/plain"
+        else -> "application/octet-stream"
+    }
 
     fun start(target: Uri) {
-        val type = if (kind == ExportKind.EPUB) ExportWorker.KIND_EPUB else ExportWorker.KIND_BOOK
+        val type = when (kind) {
+            ExportKind.EPUB -> ExportWorker.KIND_EPUB
+            ExportKind.TXT -> ExportWorker.KIND_TXT
+            else -> ExportWorker.KIND_BOOK
+        }
         work = ExportWorker.enqueue(context, type, book.id, target, withImages = kind == ExportKind.FULL)
     }
     val saveAs = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(mime)) { uri -> if (uri != null) start(uri) }

@@ -354,6 +354,8 @@ if (!/skadet=true/.test(backupLine)) fail('skadet fil ble ikke avvist');
 if (!/tegninger=true/.test(backupLine)) fail('tegnede figurer fulgte ikke med i eksporten');
 const epubSize = +(backupLine.match(/epub=(\d+)/) || [0, 0])[1];
 if (epubSize < 1000) fail('EPUB-filen er for liten');
+const txtSize = +(backupLine.match(/txt=(\d+)/) || [0, 0])[1];
+if (txtSize < 100) fail('tekstfilen er for liten');
 assertAlive();
 console.log('Sikkerhetskopi OK');
 

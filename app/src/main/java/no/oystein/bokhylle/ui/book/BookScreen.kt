@@ -186,7 +186,7 @@ fun BookScreen(
             if (pages.isNotEmpty()) {
                 var exporting by remember { mutableStateOf(false) }
                 no.oystein.bokhylle.ui.backup.SendToKindleButton(b)
-                OutlinedButton(onClick = { exporting = true }, modifier = Modifier.fillMaxWidth()) { Text("Eksporter (Bokhylle-fil eller EPUB) …") }
+                OutlinedButton(onClick = { exporting = true }, modifier = Modifier.fillMaxWidth()) { Text("Eksporter (Bokhylle-fil, EPUB eller tekst) …") }
                 if (exporting) no.oystein.bokhylle.ui.backup.ExportDialog(b) { exporting = false }
             }
 
