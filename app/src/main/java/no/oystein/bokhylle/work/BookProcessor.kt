@@ -74,11 +74,15 @@ class BookProcessor(private val app: BokhylleApp) {
             LayoutInput(p.id, o, detected[p.id], ManualRegion.decode(p.manuelleOmrader))
         }
         val mlLayouts = LayoutBuilder.build(mlInputs)
+        // Kapittelnummer i stor skrift som Claude har utelatt, hentes fra telefonens tekstgjenkjenning (og
+        // nummereringen i boka når tallet er lest feil), derfor hele boka på én gang i leserekkefølge.
+        val claudePages = done.filter { claude[it.id] != null }
+        val restored = no.oystein.bokhylle.core.ChapterNumbers
+            .restoreBook(claudePages.map { claude.getValue(it.id)!! to ocr[it.id]?.lines.orEmpty() })
+            .let { list -> claudePages.map { it.id }.zip(list).toMap() }
         val layouts = LayoutBuilder.linkPages(
             done.mapNotNull { p ->
-                val l = claude[p.id]
-                    // Kapittelnummer i stor skrift som Claude har utelatt, hentes fra telefonens tekstgjenkjenning.
-                    ?.let { no.oystein.bokhylle.core.ChapterNumbers.restore(it, ocr[p.id]?.lines.orEmpty()) }
+                val l = restored[p.id]
                     ?.let { LayoutOps.applyRegions(it, ManualRegion.decode(p.manuelleOmrader)) } ?: mlLayouts[p.id]
                 l?.let { p.id to it }
             },
@@ -203,7 +207,7 @@ class BookProcessor(private val app: BokhylleApp) {
         private const val TAG = "Bokhylle"
 
         /** Øk når oppsettet lages annerledes, så bøkene bygges om når de åpnes (se [rebuildIfOutdated]). */
-        const val LAYOUT_VERSION = 2
+        const val LAYOUT_VERSION = 3
 
         /** Øk når utklippingen av figurer forbedres, så eksisterende figurer lages på nytt. */
         private const val FIGURE_VERSION = 5

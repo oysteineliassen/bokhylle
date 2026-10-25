@@ -63,4 +63,17 @@ class ChapterNumbersTest {
         assertEquals("35 Hyppige måltider gir et ustabilt blodsukker", l.blocks[0].text)
         assertEquals("Kapittel", l.blocks[1].text)
     }
+
+    @Test
+    fun `feillest kapittelnummer rettes eller fylles inn fra nummereringen`() {
+        fun page(mark: String, title: String) = layout(title) to lines.map { if (it.text == "38") it.copy(text = mark) else it }
+        // «Z6» tolkes som 26.
+        assertEquals("26 Spis mest", ChapterNumbers.restore(page("Z6", "Spis mest").first, page("Z6", "Spis mest").second).blocks[0].text)
+        // «2б» kan ikke leses, men står mellom kapittel 25 og 27.
+        val book = ChapterNumbers.restoreBook(listOf(page("25", "A"), page("2б", "B"), page("27", "C")))
+        assertEquals(listOf("25 A", "26 B", "27 C"), book.map { it.blocks[0].text })
+        // Passer ikke hullet (25 → 28 med én ukjent), gjettes ingenting.
+        val gap = ChapterNumbers.restoreBook(listOf(page("25", "A"), page("2б", "B"), page("28", "C")))
+        assertEquals("B", gap[1].blocks[0].text)
+    }
 }
