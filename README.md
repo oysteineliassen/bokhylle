@@ -87,6 +87,11 @@ Uten API-nøkkel (eller uten nett) brukes ML Kit på telefonen. Med nøkkel er C
   eller lagres på telefonen («Lagre figurfilen på telefonen»). Legg den ved i en chat med
   Claude, få tilbake en `.bokhylle-tegninger`-fil, og velg «Importer tegninger». Fotoene tas vare på.
   `verktoy/tegninger.py` pakker ut figurfilen og pakker tegningsfilen.
+- **Figurtype**: Claude merker hver figur som diagram, kart, graf, tegning, foto, illustrasjon eller logo (logo
+  dekker også FSC/PEFC/Svanemerket, forlagslogoer, strekkoder/ISBN og QR-koder). Bare diagrammer, kart, grafer og
+  tegninger tas med i figureksporten og «Tegn på nytt» for hele boka; resten beholdes som foto. Figurer analysert
+  før dette gjenkjennes som logo ut fra beskrivelsen. I figurvisningen kan valget overstyres med «Utelat i
+  tegneeksport» / «Ta med i tegneeksport».
 - **Innholdsfortegnelsen er klikkbar** i leseren: trykk på en oppføring («Kapittel 3 …… 47») for å gå til siden med
   det sidetallet (eller nærmeste side før, hvis den mangler).
 - **Figurer i gråtoner** (valg ved EPUB-eksport og «Send til Kindle», på som standard): figurene lages for Kindle uten

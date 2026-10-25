@@ -43,6 +43,7 @@ fun FiguresCard(book: Book, pages: List<Page>, onCompare: () -> Unit = {}) {
     val app = context.app
     val scope = rememberCoroutineScope()
     val count = remember(pages) { FigureExchange.count(pages) }
+    val excluded = remember(pages) { FigureExchange.excluded(pages) }
     // Bøker uten figurer trenger ikke kortet.
     val hasFigures = remember(pages) {
         pages.any { p -> no.oystein.bokhylle.core.PageLayout.decode(p.layoutJson)?.blocks.orEmpty().any { it.type == no.oystein.bokhylle.core.BlockType.FIGURE } }
@@ -75,23 +76,30 @@ fun FiguresCard(book: Book, pages: List<Page>, onCompare: () -> Unit = {}) {
         val name = book.tittel.replace(Regex("[^\\p{L}\\p{N} ._-]"), "").trim().ifEmpty { "bok" }
         "$name ${FigureExchange.FIGURES_EXTENSION}.zip"
     }
-    suspend fun exportFile(): File? = withContext(Dispatchers.IO) {
-        runCatching {
-            val dir = File(context.cacheDir, "del").apply { mkdirs() }
-            File(dir, fileName).also { f -> f.outputStream().use { FigureExchange.export(app, book.id, it) } }
-        }.getOrNull()
+    suspend fun exportFile(): Result<File> = withContext(Dispatchers.IO) {
+        val dir = File(context.cacheDir, "del").apply { mkdirs() }
+        val f = File(dir, fileName)
+        runCatching { f.outputStream().use { FigureExchange.export(app, book.id, it) }; f }
+            .onFailure { f.delete() }
     }
+    fun failureText(e: Throwable?, fallback: String) =
+        if (e is FigureExchange.NothingToExport) FigureExchange.NOTHING_TO_EXPORT else fallback
     val saveAs = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         busy = "Lagrer figurfilen …"
         scope.launch {
-            val ok = withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    context.contentResolver.openOutputStream(uri)?.use { FigureExchange.export(app, book.id, it) } != null
-                }.getOrDefault(false)
+                    context.contentResolver.openOutputStream(uri)?.use { FigureExchange.export(app, book.id, it) }
+                        ?: throw IllegalStateException("Kunne ikke åpne filen")
+                }.onFailure {
+                    // Ingen tom eller halvferdig fil liggende igjen.
+                    runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) }
+                }
             }
             busy = null
-            Toast.makeText(context, if (ok) "Figurfilen er lagret" else "Kunne ikke lagre figurfilen", Toast.LENGTH_LONG).show()
+            val message = if (result.isSuccess) "Figurfilen er lagret" else failureText(result.exceptionOrNull(), "Kunne ikke lagre figurfilen")
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -99,9 +107,13 @@ fun FiguresCard(book: Book, pages: List<Page>, onCompare: () -> Unit = {}) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Tegne figurer i en chat", style = MaterialTheme.typography.titleMedium)
             Text(
-                if (count > 0) "$count figurer er ikke tegnet på nytt. Eksporter dem, send filen i en chat med Claude, og importer " +
-                    "filen med tegningene du får tilbake. Bruker ikke API-kreditt."
-                else "Ingen figurer igjen å tegne. Har du fått en fil med tegninger tilbake, importer den her.",
+                when {
+                    count > 0 -> "$count figurer er ikke tegnet på nytt. Eksporter dem, send filen i en chat med Claude, og importer " +
+                        "filen med tegningene du får tilbake. Bruker ikke API-kreditt." +
+                        if (excluded > 0) " $excluded fotografier, illustrasjoner og logoer beholdes som bilder." else ""
+                    excluded > 0 -> FigureExchange.NOTHING_TO_EXPORT + " Har du fått en fil med tegninger tilbake, importer den her."
+                    else -> "Ingen figurer igjen å tegne. Har du fått en fil med tegninger tilbake, importer den her."
+                },
                 style = MaterialTheme.typography.bodySmall,
             )
             busy?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
@@ -111,10 +123,11 @@ fun FiguresCard(book: Book, pages: List<Page>, onCompare: () -> Unit = {}) {
                     onClick = {
                         busy = "Lager figurfilen …"
                         scope.launch {
-                            val file = exportFile()
+                            val result = exportFile()
                             busy = null
+                            val file = result.getOrNull()
                             if (file == null) {
-                                Toast.makeText(context, "Kunne ikke lage figurfilen", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, failureText(result.exceptionOrNull(), "Kunne ikke lage figurfilen"), Toast.LENGTH_LONG).show()
                                 return@launch
                             }
                             val uri = FileProvider.getUriForFile(context, "${context.packageName}.filer", file)

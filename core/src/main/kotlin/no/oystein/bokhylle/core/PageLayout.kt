@@ -35,6 +35,10 @@ data class LayoutBlock(
     val drawing: String? = null,
     /** Satt når blokken er markert av brukeren. */
     val manual: Boolean = false,
+    /** Figurtypen fra analysen (null for eldre analyser og ML Kit). */
+    val kind: FigureKind? = null,
+    /** Brukerens valg «ta med / utelat i tegneeksport»; null = etter figurtypen (se [FigureKind.shouldRedraw]). */
+    val redraw: Boolean? = null,
 )
 
 /** Sideoppsettet leseren viser: blokkene i leserekkefølge, og det som ikke hører til brødteksten for seg. */
@@ -62,6 +66,7 @@ data class PageLayout(
                     "type" to b.type.json, "text" to b.text.ifEmpty { null }, "title" to b.title,
                     "description" to b.description, "number" to b.number, "bbox" to b.box?.toList(),
                     "image" to b.image, "photo" to b.photo, "drawing" to b.drawing, "manual" to (if (b.manual) true else null),
+                    "kind" to b.kind?.json, "redraw" to b.redraw,
                 )
             },
         ),
@@ -103,6 +108,8 @@ data class PageLayout(
                     photo = o.str("photo"),
                     drawing = o.str("drawing"),
                     manual = o.bool("manual"),
+                    kind = FigureKind.of(o.str("kind")),
+                    redraw = o["redraw"] as? Boolean,
                 )
             }
             return PageLayout(

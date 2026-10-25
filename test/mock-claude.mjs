@@ -16,7 +16,7 @@ function layout(id) {
       { type: 'heading', text: 'Fra Claude', title: null, description: null, number: null, bbox: [0.1, 0.05, 0.9, 0.1] },
       { type: 'paragraph', text: `Tekst fra Claude for side ${id}.[^1]`, title: null, description: null, number: null, bbox: [0.1, 0.12, 0.9, 0.4] },
       { type: 'box', text: 'Innhold i faktaboksen.', title: 'Visste du?', description: null, number: null, bbox: [0.1, 0.42, 0.9, 0.55] },
-      { type: 'figure', text: null, title: null, description: 'En tegning av en bokhylle', number: null, bbox: [0.2, 0.57, 0.8, 0.85] },
+      { type: 'figure', text: null, title: null, description: 'En tegning av en bokhylle', kind: 'tegning', number: null, bbox: [0.2, 0.57, 0.8, 0.85] },
       { type: 'caption', text: 'Figur 1. Bokhylla.', title: null, description: null, number: null, bbox: [0.2, 0.86, 0.8, 0.88] },
       { type: 'footnote', text: 'Dette er fotnoten.', title: null, description: null, number: '1', bbox: [0.1, 0.9, 0.9, 0.93] },
     ],

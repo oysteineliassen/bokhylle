@@ -114,6 +114,8 @@ class DrawWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             .flatMap(::figuresOf)
             // Figurer med en tegning lagt til side har brukeren valgt fotoet for; de tegnes ikke på nytt for hele boka.
             .filter { File(it.block.image!!).name !in skipped && it.block.drawing == null }
+            // Fotografier, illustrasjoner og logoer (FSC-merker o.l.) beholdes som foto.
+            .filter { no.oystein.bokhylle.core.FigureKind.shouldRedraw(it.block) }
         var done = 0
         var drawn = 0
         for (f in figures) {
@@ -206,13 +208,13 @@ class DrawWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             prefs.edit().putStringSet(KEY_SKIPPED, skippedImages(context) + name).apply()
         }
 
-        /** Figurer i boka som kan tegnes på nytt (ikke tegnet ennå, og ikke avvist som fotografi). */
+        /** Figurer i boka som kan tegnes på nytt (ikke tegnet ennå, ikke avvist som fotografi, og ikke foto/illustrasjon/logo). */
         fun candidates(context: Context, pages: List<Page>): Int {
             val skipped = skippedImages(context)
             return pages.filter { it.status == Page.STATUS_FERDIG }.sumOf { p ->
                 PageLayout.decode(p.layoutJson)?.blocks.orEmpty().count { b ->
                     b.type == BlockType.FIGURE && b.image != null && !PageImages.isDrawing(b.image) && b.drawing == null &&
-                        File(b.image!!).name !in skipped
+                        File(b.image!!).name !in skipped && no.oystein.bokhylle.core.FigureKind.shouldRedraw(b)
                 }
             }
         }

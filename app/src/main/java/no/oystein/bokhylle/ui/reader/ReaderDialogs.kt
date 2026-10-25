@@ -52,6 +52,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -115,6 +116,13 @@ fun FigureDialog(path: String, description: String?, pageId: Long?, modelId: Str
         value = pageId?.let { app.db.pages().get(it) }?.let { p ->
             no.oystein.bokhylle.core.PageLayout.decode(p.layoutJson)?.blocks?.firstOrNull { it.image == path }?.drawing
         }?.takeIf { File(it).exists() }
+    }
+    // Figurtypen og om figuren tas med i tegneeksporten (kan overstyres her).
+    var redrawVersion by remember { mutableIntStateOf(0) }
+    val block by produceState<no.oystein.bokhylle.core.LayoutBlock?>(null, pageId, path, redrawVersion) {
+        value = pageId?.let { app.db.pages().get(it) }?.let { p ->
+            no.oystein.bokhylle.core.PageLayout.decode(p.layoutJson)?.blocks?.firstOrNull { it.image == path }
+        }
     }
     var work by remember { mutableStateOf<UUID?>(null) }
     var info by remember { mutableStateOf<WorkInfo?>(null) }
@@ -191,6 +199,22 @@ fun FigureDialog(path: String, description: String?, pageId: Long?, modelId: Str
                     ZoomableImage(path, description, Modifier.fillMaxWidth().aspectRatio(aspect.coerceIn(0.4f, 3f)))
                     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (description != null) Text(description, color = Color.White)
+                        val b = block
+                        if (pageId != null && !drawing && b != null) {
+                            val include = no.oystein.bokhylle.core.FigureKind.shouldRedraw(b)
+                            val kind = no.oystein.bokhylle.core.FigureKind.effective(b)
+                            Text(
+                                (kind?.let { "Figurtype: ${it.json}. " } ?: "") +
+                                    (if (include) "Tas med i tegneeksporten." else "Utelates fra tegneeksporten (beholdes som foto).") +
+                                    (if (b.redraw != null) " (Valgt av deg.)" else ""),
+                                color = Color.White.copy(alpha = 0.8f),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            OutlinedButton(
+                                onClick = { scope.launch { app.repo.setRedraw(pageId, path, !include); redrawVersion++ } },
+                                modifier = Modifier.semantics { contentDescription = if (include) "Utelat i tegneeksport" else "Ta med i tegneeksport" },
+                            ) { Text(if (include) "Utelat i tegneeksport" else "Ta med i tegneeksport", color = Color.White) }
+                        }
                         val state = info?.state
                         when {
                             pageId == null || drawing -> Unit

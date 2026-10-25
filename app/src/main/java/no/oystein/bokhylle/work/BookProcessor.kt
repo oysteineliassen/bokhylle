@@ -126,6 +126,10 @@ class BookProcessor(private val app: BokhylleApp) {
             .filter { b -> b.box != null && b.drawing != null && File(b.drawing!!).exists() }
             .associate { b -> legacyKey(b.box!!) to b.drawing!! }
         val legacy = previousBlocks.associate { (box, img) -> legacyKey(box) to img }
+        // Brukerens valg «ta med / utelat i tegneeksport» følger figuren.
+        val redraw = PageLayout.decode(page.layoutJson)?.blocks.orEmpty()
+            .filter { b -> b.box != null && b.redraw != null }
+            .associate { b -> legacyKey(b.box!!) to b.redraw }
         val old = PageImages.figurePaths(page).toSet()
         val keep = mutableSetOf<String>()
         val ocrLines = OcrPage.decode(page.ocrLinjer)?.lines.orEmpty()
@@ -140,7 +144,8 @@ class BookProcessor(private val app: BokhylleApp) {
             val blocks = layout.blocks.mapIndexed { i, b0 ->
                 val box = b0.box
                 if (b0.type != BlockType.FIGURE || box == null) return@mapIndexed b0
-                val b = parked[legacyKey(box)]?.let { keep += it; b0.copy(drawing = it) } ?: b0
+                val b1 = redraw[legacyKey(box)]?.let { b0.copy(redraw = it) } ?: b0
+                val b = parked[legacyKey(box)]?.let { keep += it; b1.copy(drawing = it) } ?: b1
                 drawings[legacyKey(box)]?.let { d ->
                     keep += d.image!!
                     val photo = d.photo?.takeIf { File(it).exists() }

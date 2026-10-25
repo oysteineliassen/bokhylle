@@ -5,6 +5,7 @@ import no.oystein.bokhylle.BokhylleApp
 import no.oystein.bokhylle.claude.ClaudeDraw
 import no.oystein.bokhylle.core.BlockType
 import no.oystein.bokhylle.core.Box
+import no.oystein.bokhylle.core.FigureKind
 import no.oystein.bokhylle.core.Json
 import no.oystein.bokhylle.core.PageLayout
 import no.oystein.bokhylle.core.arr
@@ -28,7 +29,8 @@ import java.util.zip.ZipOutputStream
  * med én SVG per figur, som «Importer tegninger» legger inn i boka (fotoene tas vare på, som ved «Tegn på nytt»).
  *
  * figurer.json: {"format":"bokhylle-figurer","version":1,"book":uuid,"title":…,"figures":[{"key","page","pageNumber",
- *   "image":"figurer/<key>.jpg","context":"kontekst/<key>.jpg"|null,"description","caption"}]}
+ *   "image":"figurer/<key>.jpg","context":"kontekst/<key>.jpg"|null,"description","caption","kind"?}]}
+ *   («kind» er valgfritt: diagram | kart | graf | tegning, se [FigureKind].)
  * tegninger.json: {"format":"bokhylle-tegninger","version":1,"book":uuid,"drawings":[{"key","svg":"tegninger/<key>.svg"}]}
  */
 object FigureExchange {
@@ -42,25 +44,50 @@ object FigureExchange {
     fun keyOf(pageId: Long, box: Box) =
         "s$pageId-" + box.toList().joinToString("_") { "%.3f".format(java.util.Locale.ROOT, it) }.hashCode().toUInt().toString(16)
 
-    private data class Figure(val page: Page, val key: String, val image: String, val description: String?, val caption: String?, val box: Box)
+    private data class Figure(
+        val page: Page, val key: String, val image: String, val description: String?, val caption: String?, val box: Box,
+        val kind: FigureKind?,
+    )
 
-    /** Figurene i boka som ikke er tegnet ennå; med [includeDrawn] også de som er tegnet (nye tegninger erstatter dem). */
+    /**
+     * Figurene i boka som ikke er tegnet ennå og skal tegnes på nytt (diagrammer, kart, grafer og tegninger, eller
+     * valgt av brukeren; se [FigureKind.shouldRedraw]). Med [includeDrawn] alle figurer, også de som er tegnet,
+     * så importen finner dem (nye tegninger erstatter dem).
+     */
     private fun figures(pages: List<Page>, includeDrawn: Boolean = false): List<Figure> = pages.filter { it.status == Page.STATUS_FERDIG }.flatMap { p ->
         val blocks = PageLayout.decode(p.layoutJson)?.blocks.orEmpty()
-        blocks.mapIndexedNotNull { i, b ->
-            val image = b.image ?: return@mapIndexedNotNull null
-            val box = b.box ?: return@mapIndexedNotNull null
-            if (b.type != BlockType.FIGURE || (!includeDrawn && PageImages.isDrawing(image)) || !File(image).exists()) return@mapIndexedNotNull null
-            Figure(p, keyOf(p.id, box), image, b.description, blocks.getOrNull(i + 1)?.takeIf { it.type == BlockType.CAPTION }?.text, box)
+        val indices = if (includeDrawn) blocks.indices.filter { blocks[it].type == BlockType.FIGURE && blocks[it].image != null && blocks[it].box != null }
+        else FigureKind.forExport(blocks, PageImages::isDrawing)
+        indices.mapNotNull { i ->
+            val b = blocks[i]
+            val image = b.image!!
+            val box = b.box!!
+            if (!File(image).exists()) return@mapNotNull null
+            Figure(p, keyOf(p.id, box), image, b.description, blocks.getOrNull(i + 1)?.takeIf { it.type == BlockType.CAPTION }?.text, box, FigureKind.effective(b))
         }
     }
 
-    /** Antall figurer som kan sendes til tegning (ikke tegnet ennå). */
+    /** Antall figurer som kan sendes til tegning (ikke tegnet ennå, og ikke foto, illustrasjon eller logo). */
     fun count(pages: List<Page>) = figures(pages).size
+
+    /** Antall figurer som ikke er tegnet og holdes utenfor tegneeksporten (foto, illustrasjon, logo, eller valgt bort). */
+    fun excluded(pages: List<Page>) = pages.filter { it.status == Page.STATUS_FERDIG }.sumOf { p ->
+        PageLayout.decode(p.layoutJson)?.blocks.orEmpty().count { b ->
+            val image = b.image
+            b.type == BlockType.FIGURE && b.box != null && image != null && !PageImages.isDrawing(image) &&
+                !FigureKind.shouldRedraw(b) && File(image).exists()
+        }
+    }
+
+    /** Eksporten ville blitt tom: ingen figurer å tegne på nytt. */
+    class NothingToExport : Exception(NOTHING_TO_EXPORT)
+
+    const val NOTHING_TO_EXPORT = "Ingen figurer å tegne på nytt i denne boka (logoer og fotografier beholdes som bilder)."
 
     suspend fun export(app: BokhylleApp, bookId: Long, out: OutputStream): Int {
         val book = app.db.books().get(bookId) ?: throw BackupFormatException("Fant ikke boka")
         val list = figures(app.db.pages().forBook(bookId))
+        if (list.isEmpty()) throw NothingToExport()
         ZipOutputStream(out.buffered()).use { zip ->
             fun put(name: String, bytes: ByteArray) { zip.putNextEntry(ZipEntry(name)); zip.write(bytes); zip.closeEntry() }
             // Først i arkivet: oppskriften for den som tegner (en ny chat skal skjønne oppgaven uten mer forklaring).
@@ -74,6 +101,8 @@ object FigureExchange {
                     "key" to f.key, "page" to f.page.id, "pageNumber" to f.page.sidetallVisning,
                     "image" to "figurer/${f.key}.jpg", "context" to context,
                     "description" to f.description, "caption" to f.caption,
+                    // Valgfritt felt (ikke i versjon 1 opprinnelig); tegninger.py og importen ser bort fra det.
+                    "kind" to f.kind?.json,
                 )
             }
             put(

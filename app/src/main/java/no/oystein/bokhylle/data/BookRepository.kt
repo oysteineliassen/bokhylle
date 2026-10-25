@@ -234,6 +234,24 @@ class BookRepository(
         processor.rebuild(page.bookId)
     }
 
+    /**
+     * Brukerens valg for figuren som viser [image]: ta med (true) eller utelat (false) i tegneeksporten og «Tegn på
+     * nytt» for hele boka. Settes tilbake til figurtypen når valget er det samme som typen tilsier.
+     */
+    suspend fun setRedraw(pageId: Long, image: String, include: Boolean) {
+        val page = db.pages().get(pageId) ?: return
+        val layout = no.oystein.bokhylle.core.PageLayout.decode(page.layoutJson) ?: return
+        val blocks = layout.blocks.map {
+            if (it.image != image) it
+            else {
+                val auto = no.oystein.bokhylle.core.FigureKind.shouldRedraw(it.copy(redraw = null))
+                it.copy(redraw = include.takeIf { v -> v != auto })
+            }
+        }
+        db.pages().setLayoutJson(pageId, layout.copy(blocks = blocks).encode())
+        db.books().touch(page.bookId)
+    }
+
     /** Tar i bruk igjen tegningen som ble lagt til side for figuren som nå viser [photo]. */
     suspend fun useParkedDrawing(pageId: Long, photo: String) {
         val page = db.pages().get(pageId) ?: return

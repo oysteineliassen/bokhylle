@@ -138,7 +138,11 @@ object ClaudeOcr {
             innhold i "text" (avsnitt skilt med en blank linje).
           * "figure": bilde, illustrasjon, diagram, kart eller tabell som bilde. "description": kort beskrivelse
             (én-to setninger) på bokas språk. Tekst inne i figuren (etiketter, akser) skal IKKE i brødteksten,
-            bare nevnes i beskrivelsen ved behov.
+            bare nevnes i beskrivelsen ved behov. "kind": hva slags figur det er:
+            "diagram" (flytskjema, modell, tabell som bilde), "kart", "graf" (kurver, søyler, sektordiagram),
+            "tegning" (strektegning, skisse), "foto" (fotografi), "illustrasjon" (detaljert/malt kunstnerisk bilde)
+            eller "logo" (logoer og forlagsmerker, sertifiserings- og miljømerker som FSC, PEFC og Svanemerket,
+            strekkoder/ISBN og QR-koder).
           * "caption": bildetekst til en figur.
           * "footnote": fotnotetekst nederst på siden; nummeret i "number", teksten i "text".
         - Fotnotehenvisninger (små hevede tall eller tegn etter et ord) skrives i teksten som [^n], f.eks. «sant.[^3]».
@@ -150,7 +154,7 @@ object ClaudeOcr {
           "continues_to_next": true hvis siste avsnitt fortsetter på neste side.
         - "bbox" for hver blokk: [x0, y0, x1, y1] normalisert 0–1 i forhold til bildet (x mot høyre, y nedover).
           Vær nøyaktig for figurer, siden de klippes ut fra bildet.
-        - Felter som ikke gjelder blokken settes til null. Tom side: tom "blocks"-liste.
+        - Felter som ikke gjelder blokken settes til null ("kind" er null for alt som ikke er figurer). Tom side: tom "blocks"-liste.
     """.trimIndent()
 
     private val nullableString = mapOf("type" to listOf("string", "null"))
@@ -169,12 +173,18 @@ object ClaudeOcr {
                 "items" to mapOf(
                     "type" to "object",
                     "additionalProperties" to false,
-                    "required" to listOf("type", "text", "title", "description", "number", "bbox"),
+                    "required" to listOf("type", "text", "title", "description", "kind", "number", "bbox"),
                     "properties" to mapOf(
                         "type" to mapOf("type" to "string", "enum" to listOf("heading", "paragraph", "box", "figure", "caption", "footnote")),
                         "text" to nullableString,
                         "title" to nullableString,
                         "description" to nullableString,
+                        "kind" to mapOf(
+                            "anyOf" to listOf(
+                                mapOf("type" to "string", "enum" to no.oystein.bokhylle.core.FigureKind.entries.map { it.json }),
+                                mapOf("type" to "null"),
+                            ),
+                        ),
                         "number" to nullableString,
                         "bbox" to mapOf("type" to "array", "items" to mapOf("type" to "number")),
                     ),
