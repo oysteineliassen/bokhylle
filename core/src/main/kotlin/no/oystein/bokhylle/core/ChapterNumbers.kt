@@ -3,7 +3,8 @@ package no.oystein.bokhylle.core
 /**
  * Kapittelnummer i stor skrift over kapitteltittelen («43» over «Tidsbegrenset spising») ser Claude av og til
  * på som pynt og utelater. Telefonens tekstgjenkjenning har det som en egen, stor linje rett over overskriften;
- * da settes nummeret tilbake først i overskriften («43 Tidsbegrenset spising»).
+ * da settes nummeret tilbake først i overskriften («43 Tidsbegrenset spising»). Omvendt kan overskriften bestå av
+ * bare nummeret («35») når tittelen under er utelatt; da hentes tittelen fra linjen rett under.
  */
 object ChapterNumbers {
     private val number = Regex("""^\d{1,3}$""")
@@ -31,6 +32,30 @@ object ChapterNumbers {
             used = true
             b.copy(text = "${line.text.trim()} ${b.text}")
         }
-        return if (used) layout.copy(blocks = blocks) else layout
+        return restoreTitles(if (used) layout.copy(blocks = blocks) else layout, lines, median)
+    }
+
+    private fun norm(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
+
+    /** Overskrift med bare et kapittelnummer: tittelen fra telefonens tekstgjenkjenning rett under nummeret. */
+    private fun restoreTitles(layout: PageLayout, lines: List<OcrLine>, median: Float): PageLayout {
+        var changed = false
+        val blocks = layout.blocks.mapIndexed { i, b ->
+            val box = b.box
+            if (b.type != BlockType.HEADING || box == null || !number.matches(b.text.trim())) return@mapIndexed b
+            // Står tittelen som neste blokk (egen overskrift), er den med.
+            val next = layout.blocks.getOrNull(i + 1)
+            if (next?.type == BlockType.HEADING) return@mapIndexed b
+            val title = lines.filter { l ->
+                l.text.any(Char::isLetter) && l.top >= box.bottom - box.height * 0.3f && l.top - box.bottom < box.height * 1.5f &&
+                    l.height > median * 1.15f && l.left < box.right + box.width * 4f && l.right > box.left
+            }.minByOrNull { it.top } ?: return@mapIndexed b
+            val text = title.text.trim()
+            // Ikke hvis linjen er begynnelsen av brødteksten under.
+            if (next != null && norm(next.text).startsWith(norm(text))) return@mapIndexed b
+            changed = true
+            b.copy(text = "${b.text.trim()} $text")
+        }
+        return if (changed) layout.copy(blocks = blocks) else layout
     }
 }

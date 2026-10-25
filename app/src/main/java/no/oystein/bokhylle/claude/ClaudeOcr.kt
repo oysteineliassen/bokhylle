@@ -132,6 +132,7 @@ object ClaudeOcr {
         - "blocks" i leserekkefølge. Typer:
           * "heading": overskrift (kapittel, del, mellomtittel). Står det et kapittelnummer over eller foran
             tittelen (ofte et stort tall i egen farge), skal det med først i overskriften: «43 Tidsbegrenset spising».
+            Hele overskriften står i "text" ("title" brukes bare for faktabokser).
           * "paragraph": ett avsnitt brødtekst. Slå sammen linjene i avsnittet til én tekst, og fjern orddeling ved
             linjeslutt («bok-» + «hylle» → «bokhylle»), men behold bindestrek i ord som skal ha den («NRK-sjefen»).
             Er siste ord på siden delt over til neste side, la det stå med bindestrek til slutt.

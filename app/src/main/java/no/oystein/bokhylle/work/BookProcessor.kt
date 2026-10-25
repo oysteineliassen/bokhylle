@@ -203,7 +203,7 @@ class BookProcessor(private val app: BokhylleApp) {
         private const val TAG = "Bokhylle"
 
         /** Øk når oppsettet lages annerledes, så bøkene bygges om når de åpnes (se [rebuildIfOutdated]). */
-        const val LAYOUT_VERSION = 1
+        const val LAYOUT_VERSION = 2
 
         /** Øk når utklippingen av figurer forbedres, så eksisterende figurer lages på nytt. */
         private const val FIGURE_VERSION = 5

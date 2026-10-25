@@ -97,6 +97,18 @@ data class PageLayout(
         fun fromJson(root: Map<String, Any?>, source: String): PageLayout {
             val blocks = root["blocks"].arr().mapNotNull { it.obj() }.mapNotNull { o ->
                 val type = BlockType.of(o.str("type")) ?: return@mapNotNull null
+                // Overskrift med kapittelnummeret i "text" og tittelen i "title" («35» + «Hyppige måltider …»):
+                // leseren viser bare teksten, så tittelen legges til der.
+                if (type == BlockType.HEADING) {
+                    val text = o.str("text").orEmpty().trim()
+                    val title = o.str("title")?.trim().orEmpty()
+                    if (title.isNotEmpty() && !text.contains(title)) {
+                        return@mapNotNull LayoutBlock(
+                            type, listOf(text, title).filter { it.isNotEmpty() }.joinToString(" "),
+                            box = Box.of(o["bbox"])?.let(::normalizeBox), manual = o.bool("manual"),
+                        )
+                    }
+                }
                 LayoutBlock(
                     type = type,
                     text = o.str("text").orEmpty(),

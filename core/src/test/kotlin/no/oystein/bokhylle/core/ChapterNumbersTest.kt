@@ -41,4 +41,26 @@ class ChapterNumbersTest {
         val far = layout("Spis mest").let { l -> l.copy(blocks = listOf(l.blocks[0].copy(box = Box(0.10f, 0.50f, 0.55f, 0.53f)))) }
         assertEquals("Spis mest", ChapterNumbers.restore(far, lines).blocks[0].text)
     }
+
+    @Test
+    fun `overskrift med bare nummeret får tittelen fra linjen under`() {
+        val only = PageLayout(listOf(
+            LayoutBlock(BlockType.HEADING, "38", box = Box(0.10f, 0.088f, 0.17f, 0.142f)),
+            LayoutBlock(BlockType.PARAGRAPH, "Kroppen er programmert …", box = Box(0.10f, 0.20f, 0.90f, 0.80f)),
+        ))
+        assertEquals("38 Spis mest når det er lyst", ChapterNumbers.restore(only, lines).blocks[0].text)
+    }
+
+    @Test
+    fun `tittel i title-feltet legges til overskriften`() {
+        val l = PageLayout.fromJson(
+            mapOf("blocks" to listOf(
+                mapOf("type" to "heading", "text" to "35", "title" to "Hyppige måltider gir et ustabilt blodsukker"),
+                mapOf("type" to "heading", "text" to "Kapittel", "title" to "Kapittel"),
+            )),
+            PageLayout.SOURCE_CLAUDE,
+        )
+        assertEquals("35 Hyppige måltider gir et ustabilt blodsukker", l.blocks[0].text)
+        assertEquals("Kapittel", l.blocks[1].text)
+    }
 }
