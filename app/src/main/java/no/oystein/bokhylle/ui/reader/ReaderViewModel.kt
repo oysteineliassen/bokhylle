@@ -28,6 +28,11 @@ class ReaderViewModel(val bookId: Long, private val app: BokhylleApp) : ViewMode
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val prefs = app.readerPrefs
 
+    init {
+        // Etter en oppdatering som lager oppsettet annerledes (f.eks. kapittelnummer): bygg boka om én gang.
+        viewModelScope.launch { app.processor.rebuildIfOutdated(bookId) }
+    }
+
     /** Hull i sidetallene: «Side 65–79 er ikke lagt inn ennå». */
     val missing: StateFlow<List<no.oystein.bokhylle.core.MissingPages>> = repo.pages(bookId)
         .map { no.oystein.bokhylle.work.BookProcessor.analyze(it).missing }

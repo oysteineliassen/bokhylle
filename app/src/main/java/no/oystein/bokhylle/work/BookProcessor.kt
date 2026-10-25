@@ -40,6 +40,15 @@ class BookProcessor(private val app: BokhylleApp) {
         lock.withLock { rebuildLocked(bookId) }
     }
 
+    /** Bygger boka om én gang etter en ny [LAYOUT_VERSION] (f.eks. når den åpnes etter en oppdatering av appen). */
+    suspend fun rebuildIfOutdated(bookId: Long) {
+        val prefs = app.getSharedPreferences("oppsett", android.content.Context.MODE_PRIVATE)
+        val key = "versjon-$bookId"
+        if (prefs.getInt(key, 0) >= LAYOUT_VERSION) return
+        rebuild(bookId)
+        prefs.edit().putInt(key, LAYOUT_VERSION).apply()
+    }
+
     private suspend fun rebuildLocked(bookId: Long) {
         var pages = db.pages().forBook(bookId)
         if (pages.isEmpty()) return
@@ -67,7 +76,10 @@ class BookProcessor(private val app: BokhylleApp) {
         val mlLayouts = LayoutBuilder.build(mlInputs)
         val layouts = LayoutBuilder.linkPages(
             done.mapNotNull { p ->
-                val l = claude[p.id]?.let { LayoutOps.applyRegions(it, ManualRegion.decode(p.manuelleOmrader)) } ?: mlLayouts[p.id]
+                val l = claude[p.id]
+                    // Kapittelnummer i stor skrift som Claude har utelatt, hentes fra telefonens tekstgjenkjenning.
+                    ?.let { no.oystein.bokhylle.core.ChapterNumbers.restore(it, ocr[p.id]?.lines.orEmpty()) }
+                    ?.let { LayoutOps.applyRegions(it, ManualRegion.decode(p.manuelleOmrader)) } ?: mlLayouts[p.id]
                 l?.let { p.id to it }
             },
         ).toMap()
@@ -189,6 +201,9 @@ class BookProcessor(private val app: BokhylleApp) {
 
     companion object {
         private const val TAG = "Bokhylle"
+
+        /** Øk når oppsettet lages annerledes, så bøkene bygges om når de åpnes (se [rebuildIfOutdated]). */
+        const val LAYOUT_VERSION = 1
 
         /** Øk når utklippingen av figurer forbedres, så eksisterende figurer lages på nytt. */
         private const val FIGURE_VERSION = 5
