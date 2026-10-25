@@ -76,4 +76,10 @@ class ChapterNumbersTest {
         val gap = ChapterNumbers.restoreBook(listOf(page("25", "A"), page("2б", "B"), page("28", "C")))
         assertEquals("B", gap[1].blocks[0].text)
     }
+
+    @Test
+    fun `delnummer med punktum beholder punktumet`() {
+        val dotted = lines.map { if (it.text == "38") it.copy(text = "4.") else it }
+        assertEquals("4. Spis mest når det er lyst", ChapterNumbers.restore(layout("Spis mest når det er lyst"), dotted).blocks[0].text)
+    }
 }

@@ -69,7 +69,9 @@ object ChapterNumbers {
             } ?: return@forEachIndexed
             val n = PageNumberDetector.parseToken(line.text, allowRoman = false)?.value?.takeIf { it in 1..999 }
                 ?: return layout to i
-            return layout.copy(blocks = layout.blocks.mapIndexed { k, x -> if (k == i) x.copy(text = "$n ${x.text}") else x }) to null
+            // «4.» beholdes med punktum (som i boka); feillest tall («Z6») skrives som tallet.
+            val label = line.text.trim().takeIf { Regex("""^\d{1,3}\.?$""").matches(it) } ?: n.toString()
+            return layout.copy(blocks = layout.blocks.mapIndexed { k, x -> if (k == i) x.copy(text = "$label ${x.text}") else x }) to null
         }
         return layout to null
     }

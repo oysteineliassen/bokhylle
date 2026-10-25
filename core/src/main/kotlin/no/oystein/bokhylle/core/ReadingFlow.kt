@@ -127,11 +127,17 @@ object ReadingFlow {
         val out = mutableListOf<Block>()
         val main = chapterTitles(pages)
         var forceBreak = false
+        // Forrige bokside var en skilleside (bare overskrifter, f.eks. «4. Faste og føde gjennom døgnet»).
+        var afterDivider = false
         for ((pi, layout) in pages.withIndex()) {
             val toc = TocLinks.isTocPage(layout)
             val blocks = visibleBlocks(layout).filter { (_, b) -> b.type == BlockType.FIGURE || b.text.isNotBlank() || b.title != null }
             val prevPara = out.lastOrNull()?.takeIf { it.type == BlockType.PARAGRAPH && it.spans.last().page == pi - 1 }
             val prevLayout = pages.getOrNull(pi - 1)
+            // Skillesiden står alene på sin skjermside: den begynner på ny skjermside, og det samme gjør siden etter.
+            val divider = blocks.isNotEmpty() && blocks.all { (_, b) -> b.type == BlockType.HEADING } && !toc
+            if (divider || afterDivider) forceBreak = true
+            afterDivider = divider
             blocks.forEachIndexed { k, (bi, b) ->
                 val (text, notes) = displayText(b.text, pi)
                 val first = k == 0

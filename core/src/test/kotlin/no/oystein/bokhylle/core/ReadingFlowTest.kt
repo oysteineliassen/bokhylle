@@ -92,4 +92,16 @@ class ReadingFlowTest {
         assertTrue(flow[1].breakBefore)
         assertTrue(flow[2].breakBefore)
     }
+
+    @Test
+    fun `skilleside står alene på sin skjermside`() {
+        val flow = ReadingFlow.build(listOf(
+            p(para("Slutten på del 3.")),
+            p(head("4. FASTE OG FØDE GJENNOM DØGNET")),
+            p(head("26 Kvalitetsmat og pauser fra maten"), para("Du kan ikke leve uten mat.")),
+        ))
+        assertTrue(flow[1].breakBefore)
+        assertTrue(flow[2].breakBefore)
+        assertFalse(flow[3].breakBefore)
+    }
 }
