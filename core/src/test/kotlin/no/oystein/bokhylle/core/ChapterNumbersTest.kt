@@ -29,8 +29,9 @@ class ChapterNumbersTest {
     @Test
     fun `nummer som allerede er med legges ikke til igjen`() {
         assertEquals("38 Spis mest når det er lyst", ChapterNumbers.restore(layout("38 Spis mest når det er lyst"), lines).blocks[0].text)
+        // Nummeret som egen overskrift slås sammen med tittelen.
         val separate = layout("Spis mest når det er lyst").let { it.copy(blocks = listOf(LayoutBlock(BlockType.HEADING, "38")) + it.blocks) }
-        assertEquals("Spis mest når det er lyst", ChapterNumbers.restore(separate, lines).blocks[1].text)
+        assertEquals("38 Spis mest når det er lyst", ChapterNumbers.restore(separate, lines).blocks[0].text)
     }
 
     @Test
