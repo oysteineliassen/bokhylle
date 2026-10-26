@@ -138,7 +138,8 @@ while (Date.now() < end) {
   rep = await report();
   const pages = rep?.pages ?? [];
   console.log(`  ${pages.filter((p) => p.status !== 0).length} av ${pages.length} sider behandlet`);
-  if (pages.length > 0 && pages.every((p) => p.status !== 0)) break;
+  // Ferdig når alle sider er behandlet og boka er bygget om (sidetall og oppsett er satt; tomt oppsett = ikke ennå).
+  if (pages.length > 0 && pages.every((p) => p.status !== 0) && pages.every((p) => p.status !== 1 || p.layout)) break;
 }
 if (!rep || !rep.pages.length) fail('fikk ingen rapport fra testmottakeren');
 console.log(JSON.stringify(rep, null, 1).slice(0, 6000));
