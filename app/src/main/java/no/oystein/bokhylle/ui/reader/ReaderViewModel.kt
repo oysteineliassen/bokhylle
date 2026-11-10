@@ -110,13 +110,11 @@ class ReaderViewModel(val bookId: Long, private val app: BokhylleApp) : ViewMode
 
     fun runClaude(page: Page) = app.claude.runPage(bookId, page.id)
 
-    /** Fotnoteteksten: på samme side, ellers i en notedel senere (eller tidligere) i boka. */
+    /** Teksten til en henvisning: fotnoten på samme side, ellers oppføringene i kildelisten (også «32,33» og «75–77»). */
     fun findFootnote(pageIndex: Int, number: String): String? {
         val list = pages.value ?: return null
-        val order = (pageIndex until list.size) + (pageIndex - 1 downTo 0)
-        for (i in order) {
-            layoutOf(list[i]).blocks.firstOrNull { it.type == BlockType.FOOTNOTE && it.number == number }?.let { return it.text }
-        }
-        return null
+        val found = no.oystein.bokhylle.core.Sources.lookup(list.map { layoutOf(it) }, pageIndex, number)
+        if (found.isEmpty()) return null
+        return if (found.size == 1) found[0].second else found.joinToString("\n\n") { (n, t) -> "$n. $t" }
     }
 }

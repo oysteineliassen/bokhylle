@@ -83,4 +83,11 @@ class ChapterNumbersTest {
         val dotted = lines.map { if (it.text == "38") it.copy(text = "4.") else it }
         assertEquals("4. Spis mest når det er lyst", ChapterNumbers.restore(layout("Spis mest når det er lyst"), dotted).blocks[0].text)
     }
+
+    @Test
+    fun `ensifrede nummer skrives likt`() {
+        fun page(t: String) = PageLayout(listOf(LayoutBlock(BlockType.HEADING, t))) to emptyList<OcrLine>()
+        val out = ChapterNumbers.restoreBook(listOf(page("1 Måltidet"), page("02 Munnen"), page("03 Magesekken"), page("10 Leptin")))
+        assertEquals(listOf("01 Måltidet", "02 Munnen", "03 Magesekken", "10 Leptin"), out.map { it.blocks[0].text })
+    }
 }

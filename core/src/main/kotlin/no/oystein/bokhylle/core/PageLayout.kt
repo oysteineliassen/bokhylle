@@ -86,7 +86,8 @@ data class PageLayout(
         const val SOURCE_MLKIT = "mlkit"
         const val SOURCE_CLAUDE = "claude"
 
-        val FOOTNOTE_REF = Regex("\\[\\^([^\\]\\s]{1,4})]")
+        /** «[^3]», og flere på én gang: «[^32,33]», «[^75–77]». */
+        val FOOTNOTE_REF = Regex("\\[\\^([^\\]\\s,;–-]{1,4}(?:\\s?[,;–-]\\s?[^\\]\\s,;–-]{1,4}){0,5})]")
 
         fun decode(text: String?): PageLayout? {
             val root = runCatching { Json.parse(text ?: return null).obj() }.getOrNull() ?: return null

@@ -80,7 +80,8 @@ class BookProcessor(private val app: BokhylleApp) {
         val restored = no.oystein.bokhylle.core.ChapterNumbers
             .restoreBook(
                 // Løpende topptekst som Claude har levert som overskrift, flyttes først til toppteksten.
-                no.oystein.bokhylle.core.RunningHeaders.strip(claudePages.map { claude.getValue(it.id)!! })
+                // Kildelistesider levert som fotnoter gjøres først om til vanlig tekst, så de vises.
+                no.oystein.bokhylle.core.RunningHeaders.strip(no.oystein.bokhylle.core.Sources.normalize(claudePages.map { claude.getValue(it.id)!! }))
                     .zip(claudePages.map { ocr[it.id]?.lines.orEmpty() }),
             )
             .let { list -> claudePages.map { it.id }.zip(list).toMap() }
@@ -211,7 +212,7 @@ class BookProcessor(private val app: BokhylleApp) {
         private const val TAG = "Bokhylle"
 
         /** Øk når oppsettet lages annerledes, så bøkene bygges om når de åpnes (se [rebuildIfOutdated]). */
-        const val LAYOUT_VERSION = 6
+        const val LAYOUT_VERSION = 7
 
         /** Øk når utklippingen av figurer forbedres, så eksisterende figurer lages på nytt. */
         private const val FIGURE_VERSION = 5

@@ -104,4 +104,15 @@ class ReadingFlowTest {
         assertTrue(flow[2].breakBefore)
         assertFalse(flow[3].breakBefore)
     }
+
+    @Test
+    fun `innholdsfortegnelse med bare delene gir deler som hovedkapitler`() {
+        val toc = p(head("Innhold"), para("Forord 06\n1. Hva skjer når du spiser? 09\n2. Det yrende livet i fordøyelsen 23\n3. Hva skjer når du faster? 35\n4. Faste og føde gjennom døgnet 45"))
+        fun part(t: String) = listOf(p(head(t)), p(head("01 Kapittel"), para("Tekst.")), p(head("02 Kapittel"), para("Tekst.")), p(head("VIKTIGE BUDSKAP"), para("Tekst.")))
+        val flow = ReadingFlow.build(listOf(toc) + part("1. HVA SKJER NÅR DU SPISER?") + part("2. DET YRENDE LIVET I FORDØYELSEN") + part("3. HVA SKJER NÅR DU FASTER?"))
+        val heads = flow.filter { it.type == BlockType.HEADING && !it.toc }
+        assertEquals(listOf(1, 2, 2, 2), heads.take(4).map { it.level })
+        // Kapitlene begynner fortsatt på ny skjermside når de står først på en bokside.
+        assertTrue(heads.take(4).all { it.breakBefore })
+    }
 }

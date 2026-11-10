@@ -1,6 +1,8 @@
 package no.oystein.bokhylle.ui.reader
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import no.oystein.bokhylle.core.BlockType
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.TransformOrigin
@@ -614,8 +616,13 @@ fun ReaderScreen(bookId: Long, onBack: () -> Unit, startPageId: Long? = null) {
             val note = remember(pageIndex, number) { vm.findFootnote(pageIndex, number) }
             AlertDialog(
                 onDismissRequest = { footnote = null },
-                title = { Text("Fotnote $number") },
-                text = { Text(note ?: "Fant ikke teksten til fotnote $number i boka.") },
+                title = { Text("Note $number") },
+                text = {
+                    Text(
+                        note ?: "Fant ikke teksten til note $number i boka.",
+                        modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                    )
+                },
                 confirmButton = { TextButton(onClick = { footnote = null }) { Text("Lukk") } },
             )
         }

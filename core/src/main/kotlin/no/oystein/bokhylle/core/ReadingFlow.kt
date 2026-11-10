@@ -99,17 +99,31 @@ object ReadingFlow {
      * Titlene på hovedkapitlene: oppføringene innholdsfortegnelsen setter som overskrifter (større eller fetere enn
      * underkapitlene). Tom når innholdsfortegnelsen ikke skiller mellom nivåene, eller ikke finnes.
      */
-    fun chapterTitles(pages: List<PageLayout>): Set<String> {
+    fun chapterTitles(pages: List<PageLayout>): Set<String> = tocTitles(pages).first
+
+    /**
+     * Hovedkapitlene ut fra innholdsfortegnelsen, og om nivåene er «strenge». Strengt: innholdsfortegnelsen skiller
+     * selv mellom hoved- og underkapitler. Ikke strengt: den har bare ett nivå (f.eks. bare delene i boka); da er
+     * oppføringene hovedkapitler når boka også har andre overskrifter, og sideskiftene følger den vanlige regelen.
+     */
+    private fun tocTitles(pages: List<PageLayout>): Pair<Set<String>, Boolean> {
         val main = mutableSetOf<String>()
-        var sub = 0
+        val other = mutableSetOf<String>()
         for (layout in pages.filter { TocLinks.isTocPage(it) }) {
             for (b in layout.blocks) {
                 val titles = TocLinks.entries(b.text).map { e -> normalize(b.text.substring(e.range.first, e.numberStart)) }
                     .filter { it.length >= 3 }
-                if (b.type == BlockType.HEADING) main += titles else sub += titles.size
+                if (b.type == BlockType.HEADING) main += titles else other += titles
             }
         }
-        return if (main.isNotEmpty() && sub > 0) main else emptySet()
+        if (main.isNotEmpty() && other.isNotEmpty()) return main to true
+        val all = main + other
+        if (all.size < 3) return emptySet<String>() to true
+        // Ett nivå i innholdsfortegnelsen: bare når flere av oppføringene finnes som overskrifter, og langt fra alle
+        // overskriftene i boka står der.
+        val headings = pages.filter { !TocLinks.isTocPage(it) }.flatMap { it.blocks }.filter { it.type == BlockType.HEADING }
+        val listed = headings.count { isChapter(it.text, all) }
+        return if (listed >= 3 && listed <= headings.size / 2) all to false else emptySet<String>() to true
     }
 
     /** Er overskriften [text] et av hovedkapitlene i [main]? Tåler «Kapittel 3:» o.l. foran eller bak tittelen. */
@@ -125,7 +139,9 @@ object ReadingFlow {
      */
     fun build(pages: List<PageLayout>, missingAfter: (Int) -> List<Pair<String, Int>> = { emptyList() }): List<Block> {
         val out = mutableListOf<Block>()
-        val main = chapterTitles(pages)
+        val (main, strict) = tocTitles(pages)
+        // Tittelside o.l. foran innholdsfortegnelsen får ikke nivå (de er verken hoved- eller underkapitler).
+        val firstToc = pages.indexOfFirst { TocLinks.isTocPage(it) }
         var forceBreak = false
         // Forrige bokside var en skilleside (bare overskrifter, f.eks. «4. Faste og føde gjennom døgnet»).
         var afterDivider = false
@@ -157,15 +173,15 @@ object ReadingFlow {
                 }
                 // Nivået: hovedkapitlene er overskriftene i innholdsfortegnelsen, de andre er underkapitler.
                 val level = when {
-                    b.type != BlockType.HEADING || main.isEmpty() || toc -> 0
+                    b.type != BlockType.HEADING || main.isEmpty() || toc || pi < firstToc -> 0
                     isChapter(text, main) -> 1
                     else -> 2
                 }
                 // Hovedkapittel på ny skjermside. Uten nivåer: en overskrift først på boksiden, og forrige bokside
                 // sluttet med en hel setning.
                 val chapter = b.type == BlockType.HEADING && out.isNotEmpty() && out.last().type != BlockType.HEADING &&
-                    if (main.isNotEmpty() && !toc) level == 1
-                    else first && !(out.last().type == BlockType.PARAGRAPH && endsOpen(out.last().text))
+                    ((main.isNotEmpty() && !toc && level == 1) ||
+                        ((main.isEmpty() || toc || !strict) && first && !(out.last().type == BlockType.PARAGRAPH && endsOpen(out.last().text))))
                 out += Block(
                     type = b.type, text = text, title = b.title, spans = listOf(Span(0, text.length, pi, bi)), notes = notes,
                     breakBefore = forceBreak || chapter, toc = toc, image = b.image, description = b.description, box = b.box,

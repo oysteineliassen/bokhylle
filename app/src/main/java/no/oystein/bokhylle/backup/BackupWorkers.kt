@@ -83,6 +83,9 @@ class ExportWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         }
         progress(0, 0)
         return try {
+            // Etter en oppdatering kan oppsettet være utdatert (boka er ikke åpnet i leseren ennå): bygg om først.
+            if (kind == KIND_BACKUP) app.db.books().all().forEach { app.processor.rebuildIfOutdated(it.id) }
+            else app.processor.rebuildIfOutdated(bookId)
             val uri = Uri.parse(target)
             val out = if (uri.scheme == "file") File(uri.path!!).outputStream() else app.contentResolver.openOutputStream(uri, "wt")
             out ?: throw IllegalStateException("Kunne ikke åpne målfilen")

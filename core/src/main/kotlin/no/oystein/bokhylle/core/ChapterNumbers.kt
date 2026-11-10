@@ -207,6 +207,13 @@ object ChapterNumbers {
                 texts[items[x].page to items[x].block] = "${prev + 1 + (x - k)} ${b.text.trim()}"
             }
         }
+        // Ensifrede nummer skrives likt: står de fleste som «02», «03» …, blir «1» til «01».
+        fun current(it: Item) = texts[it.page to it.block] ?: layouts[it.page].blocks[it.block].text.trim()
+        val single = items.filter { (it.number ?: 99) < 10 && leadingNumber.containsMatchIn(current(it) + " ") }
+        val padded = single.count { current(it).startsWith("0") }
+        if (padded >= 2 && padded > single.size - padded) {
+            single.filter { !current(it).startsWith("0") }.forEach { texts[it.page to it.block] = "0" + current(it) }
+        }
         if (texts.isEmpty()) return layouts
         return layouts.mapIndexed { pi, l ->
             if (texts.keys.none { it.first == pi }) l
